@@ -1,8 +1,27 @@
+cmake_minimum_required (VERSION 3.21)
+if(MSVC)
+	cmake_policy(SET CMP0091 NEW)
+endif()
 project (FractureRB)
-cmake_minimum_required (VERSION 2.8)
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 	set(CMAKE_INSTALL_PREFIX ".." CACHE PATH "comment" FORCE)
+endif()
+
+# specify project type
+set(CMAKE_CONFIGURATION_TYPES Debug Release)
+
+# specify destionation directories
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/DEBUG")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/DEBUG")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/RELEASE")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/RELEASE")
+
+# specify msvc runtime library
+if(MSVC)
+	cmake_policy(SET CMP0091 NEW)
+	set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    message(${CMAKE_MSVC_RUNTIME_LIBRARY})
 endif()
 
 option(BUILD_HYENA "If on, HyENA library parts are built from source, otherwise link to a pre-built version" OFF)
@@ -37,41 +56,55 @@ include_directories (${PROJECT_SOURCE_DIR})
 # and here's where all the other headers are
 include_directories (${PROJECT_SOURCE_DIR}/src)
 
+add_subdirectory(thirdparty)
+
+include_directories(${THIRDPARTY_INCLUDES})
+link_directories(${THIRDPARTY_LIBRARY_DIRECTORIES})
+
 # OpenVDB libraries and includes
-find_path(OpenVDBinclude openvdb/openvdb.h)
-include_directories(${OpenVDBinclude})
 add_definitions(-DOPENVDB_STATICLIB) # use static OpenVDB lib
-find_library(OpenVDBlib libOpenVDB)
-find_library(Halflib Half)
 find_library(tbblib tbb)
-find_library(zlib zlib)
-set(OpenVDB_libs ${OpenVDBlib} ${Halflib} ${tbblib} ${zlib})
+find_library(tbblibd tbb_debug)
+find_package(IlmBase)
+find_package(ZLIB)
+set(OpenVDB_libs 
+	debug ${tbblibd}
+	optimized ${tbblib}
+	ZLIB::ZLIB
+	IlmBase::Half
+	debug openvdbd
+	optimized openvdb)
 
 # Bullet libraries and includes
 if( BULLET_DOUBLE_PRECISION )
 	add_definitions(-DBT_USE_DOUBLE_PRECISION)
 endif()
-find_path(BULLET_INCLUDE bullet/btBulletDynamicsCommon.h)
-include_directories (${BULLET_INCLUDE}/bullet)
 # Bullet core libraries
-find_library(BULLET_DYNAMICS BulletDynamics)
-find_library(BULLET_COLLISION BulletCollision)
-find_library(BULLET_LINMATH LinearMath)
-set ( BULLET_LIBS ${BULLET_DYNAMICS} ${BULLET_COLLISION} ${BULLET_LINMATH} ) # order is very important for GCC builds! (MSVC is ok either way)
+set (BULLET_LIBS 
+	debug BulletDynamicsd
+	optimized BulletDynamics
+	debug BulletCollisiond
+	optimized BulletCollision
+	debug LinearMathd
+	optimized LinearMath) # order is very important for GCC builds! (MSVC is ok either way)
 # Bullet Extras libs
-find_library(BULLET_IMPORTER BulletWorldImporter)
-find_library(BULLET_LOADER BulletFileLoader)
-set ( BULLET_EXT_LIBS  ${BULLET_IMPORTER} ${BULLET_LOADER} )
+set (BULLET_EXT_LIBS
+	debug BulletWorldImporterd
+	optimized BulletWorldImporter
+	debug BulletFileLoaderd
+	optimized BulletFileLoader)
 
 
 if( BUILD_HYENA )
-  add_library ( HyENAlib2 ${LIBTYPE}
-	"hyena/wrap/HyENAWrapper.cpp"
-	"hyena/wrap/QuadratureWrapper.cpp"
-  )
-  install(TARGETS HyENAlib2 RUNTIME DESTINATION bin LIBRARY DESTINATION bin ARCHIVE DESTINATION bin) # throw this in the same dir as the binaries
-else()
-  find_library ( HYENA_LIB2 HyENAlib2 )
+	add_library ( HyENAlib2 ${LIBTYPE}
+		"hyena/wrap/HyENAWrapper.cpp"
+		"hyena/wrap/QuadratureWrapper.cpp"
+	)
+	install(TARGETS HyENAlib2 RUNTIME DESTINATION bin LIBRARY DESTINATION bin ARCHIVE DESTINATION bin) # throw this in the same dir as the binaries
+endif()
+
+if(MSVC)
+	add_compile_options(/bigobj)
 endif()
 
 add_library ( FractureLib STATIC
@@ -89,7 +122,7 @@ add_library ( FractureLib STATIC
 if( BUILD_HYENA )
   target_link_libraries (FractureLib HyENAlib2 )
 else()
-  target_link_libraries (FractureLib ${HYENA_LIB2} )
+  target_link_libraries (FractureLib ${CMAKE_CURRENT_SOURCE_DIR}/hyena/HyENAlib2_x64_MSVC_2010/HyENAlib2.lib)
 endif()
 install(TARGETS FractureLib RUNTIME DESTINATION bin LIBRARY DESTINATION bin ARCHIVE DESTINATION bin) # throw this in the same dir as the binaries
 
@@ -102,6 +135,7 @@ add_executable (FractureRB ${SRC_HEADERS}
 	"src/ColliderData.cpp"
 )
 target_link_libraries (FractureRB  FractureLib ${OpenVDB_libs} ${BULLET_EXT_LIBS} ${BULLET_LIBS} ) # order is important for GCC
+add_dependencies(FractureRB EP_openvdb EP_bullet3)
 install(TARGETS FractureRB RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 
 add_executable (FractureRB_vis ${SRC_HEADERS}
@@ -109,6 +143,8 @@ add_executable (FractureRB_vis ${SRC_HEADERS}
 	"src/VDBLoader.cpp"
 )
 target_link_libraries (FractureRB_vis FractureLib ${OpenVDB_libs} )
+add_dependencies(FractureRB_vis EP_openvdb)
+add_compile_definitions(FracutreRB_vis _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS)
 install(TARGETS FractureRB_vis RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 
 # old FractureBEM build targets -- mostly used for testing
@@ -117,6 +153,7 @@ add_executable (FractureBEM ${SRC_HEADERS}
 	"src/mainFractureBEM.cpp"
 )
 target_link_libraries (FractureBEM FractureLib ${OpenVDB_libs} )
+add_dependencies(FractureBEM EP_openvdb)
 install(TARGETS FractureBEM RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 #
 add_executable (SegmentVDB
@@ -124,6 +161,7 @@ add_executable (SegmentVDB
 	"src/mySegment.h"
 )
 target_link_libraries (SegmentVDB ${OpenVDB_libs})
+add_dependencies(SegmentVDB EP_openvdb)
 install(TARGETS SegmentVDB RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 #
 add_executable (FractureBEM_vis ${SRC_HEADERS}
@@ -131,4 +169,12 @@ add_executable (FractureBEM_vis ${SRC_HEADERS}
 	"src/VDBLoader.cpp"
 )
 target_link_libraries (FractureBEM_vis FractureLib ${OpenVDB_libs})
+add_dependencies(FractureBEM_vis EP_openvdb)
 install(TARGETS FractureBEM_vis RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
+
+if (MSVC)
+	set_target_properties(FractureRB PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/$(Configuration)")
+	set_target_properties(FractureRB_vis PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/$(Configuration)")
+	set_target_properties(FractureBEM PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/$(Configuration)")
+	set_target_properties(FractureBEM_vis PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/$(Configuration)")
+endif()
