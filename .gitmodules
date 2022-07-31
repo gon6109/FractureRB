@@ -1,6 +1,6 @@
-[submodule "thirdparty\\bullet3"]
-	path = thirdparty\\bullet3
+[submodule "thirdparty/bullet3"]
+	path = thirdparty/bullet3
 	url = https://github.com/bulletphysics/bullet3.git
-[submodule "thirdparty\\openvdb"]
-	path = thirdparty\\openvdb
+[submodule "thirdparty/openvdb"]
+	path = thirdparty/openvdb
 	url = https://github.com/gon6109/openvdb.git
