@@ -9,6 +9,7 @@ ExternalProject_Add(
     INSTALL_DIR     ${CMAKE_CURRENT_BINARY_DIR}/Install/openvdb
     CMAKE_ARGS      -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/Install/openvdb
                     -DCMAKE_USER_MAKE_RULES_OVERRIDE=${CMAKE_CURRENT_SOURCE_DIR}/CFlagOverrides.cmake
+                    -DUSE_MSVC_RUNTIME_LIBRARY_DLL=${USE_MSVC_RUNTIME_LIBRARY_DLL}
                     -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
                     -DCMAKE_DEBUG_POSTFIX=d
 )
@@ -27,6 +28,7 @@ ExternalProject_Add(
     CMAKE_ARGS      -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/Install/bullet3
                     -DCMAKE_USER_MAKE_RULES_OVERRIDE=${CMAKE_CURRENT_SOURCE_DIR}/CFlagOverrides.cmake
                     -DCMAKE_DEBUG_POSTFIX=d
+                    -DUSE_MSVC_RUNTIME_LIBRARY_DLL=${USE_MSVC_RUNTIME_LIBRARY_DLL}
                     -DBUILD_SHARED_LIBS=OFF
                     -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
                     -DCMAKE_POSITION_INDEPENDENT_CODE=ON
@@ -47,6 +49,7 @@ ExternalProject_Add(
                     -DBUILD_UNIT_TESTS=OFF
                     -DINSTALL_CMAKE_FILES=OFF
                     -DINSTALL_LIBS=ON
+                    -DUSE_MSVC_DISABLE_RTTI=OFF
 )
 
 

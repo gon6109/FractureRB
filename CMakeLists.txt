@@ -4,6 +4,10 @@ if(MSVC)
 endif()
 project (FractureRB)
 
+if(MSVC)
+    option(USE_MSVC_RUNTIME_LIBRARY_DLL "Bulid as MultithreadedDLL" ON)
+endif()
+
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 	set(CMAKE_INSTALL_PREFIX ".." CACHE PATH "comment" FORCE)
 endif()
@@ -19,8 +23,14 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/RELEASE")
 
 # specify msvc runtime library
 if(MSVC)
-	cmake_policy(SET CMP0091 NEW)
-	set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    if(USE_MSVC_RUNTIME_LIBRARY_DLL)
+        cmake_policy(SET CMP0091 NEW)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+    else()
+        cmake_policy(SET CMP0091 NEW)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    endif()
+
     message(${CMAKE_MSVC_RUNTIME_LIBRARY})
 endif()
 
@@ -38,6 +48,8 @@ if(MSVC)
 	add_definitions(-D_USE_MATH_DEFINES) # make sure we have M_PI available
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /openmp") # enable OpenMP
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W0") # get rid of warnings
+
+	# add_definitions(-D_UNICODE -DUNICODE)
 else()
 	# stuff for GNU compiler
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp") # enable OpenMP
@@ -120,9 +132,14 @@ add_library ( FractureLib STATIC
 	"vcg/wrap/ply/plylib.cpp"
 )
 if( BUILD_HYENA )
-  target_link_libraries (FractureLib HyENAlib2 )
+	target_link_libraries (FractureLib HyENAlib2 )
 else()
-  target_link_libraries (FractureLib ${CMAKE_CURRENT_SOURCE_DIR}/hyena/HyENAlib2_x64_MSVC_2010/HyENAlib2.lib)
+	add_library(HyENAlib2 SHARED IMPORTED)
+	set_property(TARGET HyENAlib2 APPEND PROPERTY IMPORTED_CONFIGURATIONS DEBUG)
+	set_property(TARGET HyENAlib2 APPEND PROPERTY IMPORTED_CONFIGURATIONS RELEASE)
+	set_target_properties(HyENAlib2 PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/hyena/HyENAlib2_x64_MSVC_2010/HyENAlib2.dll)
+	set_target_properties(HyENAlib2 PROPERTIES IMPORTED_IMPLIB ${CMAKE_CURRENT_SOURCE_DIR}/hyena/HyENAlib2_x64_MSVC_2010/HyENAlib2.lib)
+	target_link_libraries (FractureLib HyENAlib2)
 endif()
 install(TARGETS FractureLib RUNTIME DESTINATION bin LIBRARY DESTINATION bin ARCHIVE DESTINATION bin) # throw this in the same dir as the binaries
 
