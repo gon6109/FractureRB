@@ -4,3 +4,21 @@
 [submodule "thirdparty/openvdb"]
 	path = thirdparty/openvdb
 	url = https://github.com/gon6109/openvdb.git
+[submodule "thirdparty/eigen"]
+	path = thirdparty/eigen
+	url = https://gitlab.com/libeigen/eigen.git
+[submodule "thirdparty/tbb"]
+	path = thirdparty/tbb
+	url = https://github.com/wjakob/tbb.git
+[submodule "thirdparty/boost"]
+	path = thirdparty/boost
+	url = https://github.com/boostorg/boost.git
+[submodule "thirdparty/tclap"]
+	path = thirdparty/tclap
+	url = https://github.com/mirror/tclap.git
+[submodule "thirdparty/openexr"]
+	path = thirdparty/openexr
+	url = https://github.com/AcademySoftwareFoundation/openexr.git
+[submodule "thirdparty/zlib"]
+	path = thirdparty/zlib
+	url = https://github.com/madler/zlib.git

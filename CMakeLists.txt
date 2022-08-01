@@ -3,6 +3,7 @@ if(MSVC)
 	cmake_policy(SET CMP0091 NEW)
 endif()
 project (FractureRB)
+set (CMAKE_CXX_STANDARD 11)
 
 if(MSVC)
     option(USE_MSVC_RUNTIME_LIBRARY_DLL "Bulid as MultithreadedDLL" ON)
@@ -75,15 +76,13 @@ link_directories(${THIRDPARTY_LIBRARY_DIRECTORIES})
 
 # OpenVDB libraries and includes
 add_definitions(-DOPENVDB_STATICLIB) # use static OpenVDB lib
-find_library(tbblib tbb)
-find_library(tbblibd tbb_debug)
-find_package(IlmBase)
-find_package(ZLIB)
 set(OpenVDB_libs 
-	debug ${tbblibd}
-	optimized ${tbblib}
-	ZLIB::ZLIB
-	IlmBase::Half
+	debug tbbd
+	optimized tbb
+	debug zlibd
+	optimized zlib
+	debug halfd
+	optimized half
 	debug openvdbd
 	optimized openvdb)
 
@@ -152,7 +151,13 @@ add_executable (FractureRB ${SRC_HEADERS}
 	"src/ColliderData.cpp"
 )
 target_link_libraries (FractureRB  FractureLib ${OpenVDB_libs} ${BULLET_EXT_LIBS} ${BULLET_LIBS} ) # order is important for GCC
-add_dependencies(FractureRB EP_openvdb EP_bullet3)
+add_dependencies(FractureRB
+	EP_openvdb
+	EP_zlib
+	EP_tbb
+	EP_openexr
+	EP_boost
+	EP_bullet3)
 install(TARGETS FractureRB RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 
 add_executable (FractureRB_vis ${SRC_HEADERS}
@@ -160,7 +165,12 @@ add_executable (FractureRB_vis ${SRC_HEADERS}
 	"src/VDBLoader.cpp"
 )
 target_link_libraries (FractureRB_vis FractureLib ${OpenVDB_libs} )
-add_dependencies(FractureRB_vis EP_openvdb)
+add_dependencies(FractureRB_vis
+	EP_openvdb
+	EP_zlib
+	EP_tbb
+	EP_openexr
+	EP_boost)
 add_compile_definitions(FracutreRB_vis _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS)
 install(TARGETS FractureRB_vis RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 
@@ -170,7 +180,12 @@ add_executable (FractureBEM ${SRC_HEADERS}
 	"src/mainFractureBEM.cpp"
 )
 target_link_libraries (FractureBEM FractureLib ${OpenVDB_libs} )
-add_dependencies(FractureBEM EP_openvdb)
+add_dependencies(FractureBEM
+	EP_openvdb
+	EP_zlib
+	EP_tbb
+	EP_openexr
+	EP_boost)
 install(TARGETS FractureBEM RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 #
 add_executable (SegmentVDB
@@ -178,7 +193,12 @@ add_executable (SegmentVDB
 	"src/mySegment.h"
 )
 target_link_libraries (SegmentVDB ${OpenVDB_libs})
-add_dependencies(SegmentVDB EP_openvdb)
+add_dependencies(SegmentVDB
+	EP_openvdb
+	EP_zlib
+	EP_tbb
+	EP_openexr
+	EP_boost)
 install(TARGETS SegmentVDB RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 #
 add_executable (FractureBEM_vis ${SRC_HEADERS}
@@ -186,7 +206,12 @@ add_executable (FractureBEM_vis ${SRC_HEADERS}
 	"src/VDBLoader.cpp"
 )
 target_link_libraries (FractureBEM_vis FractureLib ${OpenVDB_libs})
-add_dependencies(FractureBEM_vis EP_openvdb)
+add_dependencies(FractureBEM_vis
+	EP_openvdb
+	EP_zlib
+	EP_tbb
+	EP_openexr
+	EP_boost)
 install(TARGETS FractureBEM_vis RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 
 if (MSVC)
