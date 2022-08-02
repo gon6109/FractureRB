@@ -108,10 +108,12 @@ set (BULLET_EXT_LIBS
 
 
 if( BUILD_HYENA )
-	add_library ( HyENAlib2 ${LIBTYPE}
+	add_library (HyENAlib2 ${LIBTYPE}
 		"hyena/wrap/HyENAWrapper.cpp"
 		"hyena/wrap/QuadratureWrapper.cpp"
 	)
+	find_package(FFTW3)
+	target_link_libraries(HyENAlib2 PRIVATE FFTW3::fftw3)
 	install(TARGETS HyENAlib2 RUNTIME DESTINATION bin LIBRARY DESTINATION bin ARCHIVE DESTINATION bin) # throw this in the same dir as the binaries
 endif()
 
@@ -132,7 +134,7 @@ add_library ( FractureLib STATIC
 	"vcg/wrap/ply/plylib.cpp"
 )
 if( BUILD_HYENA )
-	target_link_libraries (FractureLib HyENAlib2 )
+	target_link_libraries (FractureLib HyENAlib2)
 else()
 	add_library(HyENAlib2 SHARED IMPORTED)
 	set_property(TARGET HyENAlib2 APPEND PROPERTY IMPORTED_CONFIGURATIONS DEBUG)
@@ -141,6 +143,7 @@ else()
 	set_target_properties(HyENAlib2 PROPERTIES IMPORTED_IMPLIB ${CMAKE_CURRENT_SOURCE_DIR}/hyena/HyENAlib2_x64_MSVC_2010/HyENAlib2.lib)
 	target_link_libraries (FractureLib HyENAlib2)
 endif()
+add_dependencies(FractureLib EP_openvdb)
 install(TARGETS FractureLib RUNTIME DESTINATION bin LIBRARY DESTINATION bin ARCHIVE DESTINATION bin) # throw this in the same dir as the binaries
 
 FILE(GLOB SRC_HEADERS ${PROJECT_SOURCE_DIR}/src/*.h) # for convenience -> puts the headers into the MSVC project list

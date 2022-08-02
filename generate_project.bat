@@ -8,7 +8,7 @@ if not exist ..\vcpkg\vcpkg.exe (
     ..\vcpkg\bootstrap-vcpkg.bat
 )
 
-..\vcpkg\vcpkg.exe install eigen3:x64-windows tclap:x64-windows boost:x64-windows tbb:x64-windows zlib:x64-windows openexr:x64-windows
+..\vcpkg\vcpkg.exe install eigen3:x64-windows tclap:x64-windows boost:x64-windows tbb:x64-windows zlib:x64-windows openexr:x64-windows fftw3:x64-windows
 
 git submodule update --init
 
