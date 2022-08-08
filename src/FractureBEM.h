@@ -148,6 +148,8 @@ namespace FractureSim{
 		 * warning: output will be modified as needed
 		 */
 		void dumpDebugData();
+
+		void computeInteriorStresses(vect3d_map& tensions, vect3d_map& shears, vect3d_map& closestPoint, const std::vector<Eigen::Vector3d> points);
 	protected:
         // explicit geometry representation (BEM mesh)
         node_map nodes; // map node-ID --> coordinates

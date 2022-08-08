@@ -127,6 +127,8 @@ namespace FractureSim{
 		void setEstSIFsThreshold( int useEstSIFs_ ){ useEstSIFs=useEstSIFs_; }
 
 		inline const Eigen::Vector3d& getCOMshift(){ return vdbCOM; }
+
+		FractureBEM* getBEM() { return fractSim; }
 		
 	protected:
 		bool haveMesh, haveParams, haveBEM; // basic state checking

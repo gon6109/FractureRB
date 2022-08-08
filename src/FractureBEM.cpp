@@ -840,4 +840,12 @@ namespace FractureSim{
 			out.close();
 		}
 	}
+
+	void FractureBEM::computeInteriorStresses(vect3d_map& tensions, vect3d_map& shears, vect3d_map& closestPoint, const std::vector<Eigen::Vector3d> points)
+	{
+		vector_type& u = bemSolver->getDisplacements();
+		vector_type& q = bemSolver->getTractions();
+
+		postPro->computeInteriorStresses(tensions, shears, closestPoint, points, u, q, materialModel->getE(), materialModel->getNu());
+	}
 }

@@ -36,10 +36,7 @@ int main(int argc, char* argv[]) {
 			inputFile.getValue(),
 			paramFile.getValue(),
 			impulseSplit.getValue(),
-			estFromElems.getValue(),
-			rbTimestep.getValue(),
-			impulseThreshold.getValue(),
-			forceThreshold.getValue()
+			estFromElems.getValue()
 		);
 		printf("\n%% scene import done\n");
 
@@ -48,14 +45,18 @@ int main(int argc, char* argv[]) {
 
 		printf("\n%% timestepping the rigid body sim ...\n");
 		btVector3 gridMinVec, gridMaxVec;
-		if (EOF == sscanf(gridMin.getValue().c_str(), "%ld,%ld,%ld", &gridMinVec.x(), &gridMinVec.y(), &gridMinVec.z())) gridMinVec = btVector3(-1, -1, -1);
-		if (EOF == sscanf(gridMax.getValue().c_str(), "%ld,%ld,%ld", &gridMaxVec.x(), &gridMaxVec.y(), &gridMaxVec.z())) gridMaxVec = btVector3(1, 1, 1);
+		if (EOF == sscanf(gridMin.getValue().c_str(), "%lf,%lf,%lf", &gridMinVec.x(), &gridMinVec.y(), &gridMinVec.z())) gridMinVec = btVector3(-1, -1, -1);
+		if (EOF == sscanf(gridMax.getValue().c_str(), "%lf,%lf,%lf", &gridMaxVec.x(), &gridMaxVec.y(), &gridMaxVec.z())) gridMaxVec = btVector3(1, 1, 1);
 		generator.generate(
 			&outSim,
 			iterations.getValue(),
 			gridNum.getValue(),
 			gridMinVec,
-			gridMaxVec);
+			gridMaxVec,
+			rbTimestep.getValue(),
+			impulseThreshold.getValue(),
+			forceThreshold.getValue()
+		);
 
 		outSim.close();
 

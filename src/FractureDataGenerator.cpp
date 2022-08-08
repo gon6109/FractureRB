@@ -1,6 +1,10 @@
 #include "FractureDataGenerator.h"
 #include "FractureRB.h"
 #include "ColliderData.h"
+#include "FractureBEM.h"
+#include "PostProcessor.h"
+#include "FractureRB_config.h"
+#include "VDBWrapper.h"
 
 #include <BulletCollision/Gimpact/btGImpactCollisionAlgorithm.h>
 
@@ -8,7 +12,7 @@
 #include <BulletDynamics/MLCPSolvers/btDantzigSolver.h>
 #include <vcg/complex/complex.h>
 #include <vcg/wrap/io_trimesh/import.h>
-#include "types.h"
+#include <vcg/wrap/io_trimesh/export_obj.h>
 
 using namespace vcg;
 using namespace tri;
@@ -36,8 +40,18 @@ namespace FractureSim
 		class MyMesh : public vcg::tri::TriMesh<std::vector<MyVertex>, std::vector<MyFace> > {};
 	}
 
+	Eigen::Vector3d toEigen(const btVector3& in) {
+		return Eigen::Vector3d(in[0], in[1], in[2]);
+	}
+	btVector3 fromEigen(const Eigen::Vector3d& in) {
+		return btVector3(in[0], in[1], in[2]);
+	}
+
 	FractureDataGenerator::FractureDataGenerator(bool useDefaultSolver)
 	{
+		std::random_device seedGen;
+		random = mt19937(seedGen());
+
 		broadphase = new btDbvtBroadphase();
 		collisionConfiguration = new btDefaultCollisionConfiguration();
 		dispatcher = new btCollisionDispatcher(collisionConfiguration);
@@ -93,10 +107,7 @@ namespace FractureSim
 		std::string inputFile,
 		std::string paramFile,
 		double splitImpulse,
-		int useEstSIFs,
-		double dt,
-		double impulseThreshold,
-		double forceThreshold)
+		int useEstSIFs)
 	{
 		double minVoxelSize = DBL_MAX;
 
@@ -166,12 +177,130 @@ namespace FractureSim
 		return 0;
 	}
 
-	int FractureDataGenerator::generate(std::ostream* out, int iterations, int gridNum, btVector3 gridMin, btVector3 gridMax)
+	int FractureDataGenerator::generate(
+		std::ostream* out,
+		int iterations,
+		int gridNum,
+		btVector3 gridMin,
+		btVector3 gridMax,
+		double dt,
+		double impulseThreshold,
+		double forceThreshold)
 	{
+		ostream& stressLog = *out;
+
 		btVector3 gridSize = (gridMax - gridMin) / gridNum;
+		vector<Eigen::Vector3d> stressEvalPos;
+		{
+			for (int z = 0; z < gridNum; z++)
+			{
+				for (int y = 0; y < gridNum; y++)
+				{
+					for (int x = 0; x < gridNum; x++)
+					{
+						Eigen::Vector3d evalPos =
+							toEigen(btVector3(gridSize.x() * x, gridSize.y() * y, gridSize.z() * z) + gridSize / 2 + gridMin);
+						stressEvalPos.push_back(evalPos);
+					}
+				}
+			}
+		}
+
 		for (int i = 0; i < iterations; i++)
 		{
+			printf("iteration: %d\n", i);
 
+			breakableRB->clearContacts();
+			double totalImpulse = 0.0;
+
+			int contactNum = random() % 5 + 1; // [1, 5]
+			for (int l = 0; l < contactNum; l++)
+			{
+				auto& elems = breakableRB->getBEM()->getElems();
+				auto& nodes = breakableRB->getBEM()->getNodes();
+				int elemId = next(elems.begin(), random() % elems.size())->first;
+
+				Eigen::Vector3d elemP0(nodes[elems[elemId][0]][0], nodes[elems[elemId][0]][1], nodes[elems[elemId][0]][2]);
+				Eigen::Vector3d elemP1(nodes[elems[elemId][1]][0], nodes[elems[elemId][1]][1], nodes[elems[elemId][1]][2]);
+				Eigen::Vector3d elemP2(nodes[elems[elemId][2]][0], nodes[elems[elemId][2]][1], nodes[elems[elemId][2]][2]);
+				Eigen::Vector3d elemNormal = (elemP1 - elemP0).cross(elemP2 - elemP0).normalized();
+
+				double t1 = random() % 100 / 100.0;
+				double t2 = random() % (int)(100 - t1 * 100) / 100.0;
+				Eigen::Vector3d pos = elemP0 + (elemP1 - elemP0) * t1 + (elemP2 - elemP0) * t2;
+
+				Eigen::Vector3d velocity;
+				do
+				{
+					velocity = Eigen::Vector3d(
+						random() % 100 / 100.0,
+						random() % 100 / 100.0,
+						random() % 100 / 100.0
+					);
+					velocity.normalize();
+					velocity *= random() % 500 / 10.0 + 0.01; // velocity [0.001, 50] m/s
+				} while (velocity.dot(elemNormal) > 0);
+				Eigen::Vector3d dir = velocity * (random() % 80) / 100.0;
+
+				unsigned int contactElem;
+				double r = std::abs(breakableRB->getCurvatureAndElementID(pos, contactElem));
+				double e = 1.0 / breakableRB->getEovNuSq();
+				double m = breakableRB->getRB()->getInvMass();
+
+				double mass = (random() % 950 + 50); // mass [50, 1000] kg
+				m += 1.0 / mass;
+
+				r = 1.0 / r;
+				e = 1.0 / e;
+				m = 1.0 / m;
+
+				double v = std::abs((-velocity).dot(dir.normalized()));
+				double t_c = std::pow(m * m / (e * e * r * v), 0.2) * 2.8682656991953313822367;
+
+				double m1 = breakableRB->getRB()->getMass(), m2 = mass;
+				double j = std::abs(((1 + breakableRB->getRB()->getRestitution()) * (m1 * m2)
+					/ (m1 + m2 + m1 * m2 * (random() % 100 / 1000.0)) * -velocity).dot(dir));
+
+				dir *= -1;
+				breakableRB->addContact(contactElem, dir, j, t_c);
+				totalImpulse += j;
+			}
+
+			printf("fracture sim\n");
+			int check = breakableRB->runFractureSim(dt, 0);
+
+			vect3d_map sigma, tau;
+			vect3d_map unused;
+			breakableRB->getBEM()->computeInteriorStresses(sigma, tau, unused, stressEvalPos);
+
+			printf("contact points: %d, total impulse: %lf, total force: %lf\n", contactNum, totalImpulse, breakableRB->getTotalContactForce());
+			string crackObjFileName = "";
+			if ((totalImpulse >= impulseThreshold || breakableRB->getTotalContactForce() >= forceThreshold)
+				&& breakableRB->getTotalContactForce() > 0.0)
+			{
+				node_map nodes;
+				elem_map elems;
+				breakableRB->getBEM()->getLevelSet().mesh(nodes, elems);
+
+				crackObjFileName = to_string(i) + ".obj";
+				saveObj(crackObjFileName, nodes, elems);
+				printf("save crack .obj file: %s\n", crackObjFileName.c_str());
+			}
+
+			for (int l = 0; l < sigma.size(); l++)
+			{
+				for (int m = 0; m < 3; m++)
+				{
+					stressLog << sigma[l][m] << ", ";
+				}
+
+				for (int m = 0; m < 3; m++)
+				{
+					stressLog << tau[l][m] << ", ";
+				}
+			}
+
+			stressLog << crackObjFileName << endl;
 		}
 		return 0;
 	}
@@ -202,6 +331,37 @@ namespace FractureSim
 		}
 
 		return r;
+	}
+
+	int FractureDataGenerator::saveObj(std::string filename, node_map& nodes, elem_map& elems)
+	{
+		localReaderVCG::MyMesh mesh;
+
+		unsigned int firstVert = mesh.vert.size();
+		std::map<unsigned int, localReaderVCG::MyVertex> vertex_map;
+		localReaderVCG::MyMesh::VertexIterator vi = vcg::tri::Allocator<localReaderVCG::MyMesh>::AddVertices(mesh, nodes.size());
+		for (auto node : nodes)
+		{
+			vi->P()[0] = node.second[0];
+			vi->P()[1] = node.second[1];
+			vi->P()[2] = node.second[2];
+			vertex_map[node.first] = *vi;
+			vi++;
+		}
+
+		localReaderVCG::MyMesh::FaceIterator fi = vcg::tri::Allocator<localReaderVCG::MyMesh>::AddFaces(mesh, elems.size());
+		for (auto elem : elems)
+		{
+			fi->V(0) = &(vertex_map[elem.second[0]]);
+			fi->V(1) = &(vertex_map[elem.second[1]]);
+			fi->V(2) = &(vertex_map[elem.second[2]]);
+			fi++;
+		}
+
+		vcg::tri::io::ExporterOBJ<localReaderVCG::MyMesh> writerObj;
+		writerObj.Save(mesh, filename.c_str(), vcg::tri::io::Mask::IOM_NONE);
+
+		return 0;
 	}
 
 	// string-trim helpers from http://www.cplusplus.com/faq/sequences/strings/trim/
