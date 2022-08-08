@@ -14,4 +14,4 @@ git submodule update --init
 
 if not exist build mkdir build
 cd build
-cmake .. -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake
+cmake .. -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake -DBUILD_HYENA=ON

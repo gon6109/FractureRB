@@ -1,6 +1,3 @@
-to build the HyENA library you need to obtain the
-hyena-core-master version dated 2013-Nov-04
-from the original authors (more info here: http://www.mech.tugraz.at/HyENA)
-(compatibility with other versions has not been tested)
-
-pre-built binaries are provided
+patch for hyena core master dated 2013-Nov-04
+replace originals with files from this archive
+enables MSVC build and fracture simulation with HyENA

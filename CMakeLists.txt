@@ -192,6 +192,17 @@ target_link_libraries (FractureBEM_vis FractureLib ${OpenVDB_libs})
 add_dependencies(FractureBEM_vis EP_openvdb)
 install(TARGETS FractureBEM_vis RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 
+add_executable (GenerateFractureData ${SRC_HEADERS}
+	"src/mainGenerateFractureData.cpp"
+	"src/FractureDataGenerator.cpp"
+	"src/FractureRB.cpp"
+	"src/FractureRB_fragments.cpp"
+	"src/ColliderData.cpp"
+)
+target_link_libraries (GenerateFractureData FractureLib ${OpenVDB_libs} ${BULLET_EXT_LIBS} ${BULLET_LIBS})
+add_dependencies(GenerateFractureData EP_bullet3 EP_openvdb)
+install(TARGETS GenerateFractureData RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
+
 if (MSVC)
 	set_target_properties(FractureRB PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/$(Configuration)")
 	set_target_properties(FractureRB_vis PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/$(Configuration)")
