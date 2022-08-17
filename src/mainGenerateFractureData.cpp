@@ -18,17 +18,17 @@ int main(int argc, char* argv[]) {
 		TCLAP::ValueArg<string> outDir("o", "out", "output directory and file prefix", false, "", "out-dir", cmd);
 		TCLAP::ValueArg<double> rbTimestep("d", "time-step", "rigid body time step size", false, 1.0 / 60, "time-step", cmd);
 		TCLAP::ValueArg<int> iterations("i", "iterations", "number of iterations", false, 64, "iterations", cmd);
-		TCLAP::ValueArg<string> gridMin("", "gridMin", "minimam locate of grid AABB", false, "-1,-1,-1", "gridMin", cmd);
-		TCLAP::ValueArg<string> gridMax("", "gridMax", "maximam locate of grid AABB", false, "1,1,1", "gridMax", cmd);
-		TCLAP::ValueArg<int> gridNum("n", "gridNum", "number of stress grid cells", false, 64, "gridNum", cmd);
-		TCLAP::ValueArg<int> crackGridNum("c", "crackGridNum", "number of crack SDF grid cells", false, 256, "gridNum", cmd);
+		TCLAP::ValueArg<string> gridMin("", "grid-min", "minimam locate of grid AABB", false, "-1,-1,-1", "gridMin", cmd);
+		TCLAP::ValueArg<string> gridMax("", "grid-max", "maximam locate of grid AABB", false, "1,1,1", "gridMax", cmd);
+		TCLAP::ValueArg<int> gridNum("n", "grid-num", "number of stress grid cells", false, 64, "gridNum", cmd);
+		TCLAP::ValueArg<int> crackGridNum("c", "crack-grid-num", "number of crack SDF grid cells", false, 256, "gridNum", cmd);
 		TCLAP::ValueArg<double> impulseSplit("s", "split-impulse", "depth in units of the minimal voxel size of all input objects where impulse splitting occurs in the RB solver (default disabled)", false, -1.0, "depth", cmd);
-		TCLAP::SwitchArg        useDefaultRBsolver("", "default-solver", "use Bullet's default impulse solver instead of Danzig MLCP", cmd);
 		TCLAP::ValueArg<int>    estFromElems("e", "est-elems", "if a fracture simulation contains more than the specified number of elements switch to faster estimated SIF evaluation (default -1=never) ", false, -1, "est-elems", cmd);
+		TCLAP::ValueArg<int>    startIdx("", "start", "start index of iterations", false, 0, "start", cmd);
 
 		cmd.parse(argc, argv);
 
-		FractureDataGenerator generator(useDefaultRBsolver.getValue());
+		FractureDataGenerator generator;
 		generator.setOutputDir(outDir.getValue()); //ToDo: make this a constructor param. of BulletWrapper (?)
 		printf("\n%% reading object %s\n", inputFile.getValue().c_str());
 
@@ -47,7 +47,8 @@ int main(int argc, char* argv[]) {
 			crackGridNum.getValue(),
 			gridMinVec,
 			gridMaxVec,
-			rbTimestep.getValue()
+			rbTimestep.getValue(),
+			startIdx.getValue()
 		);
 
 		printf("\n%% simulation done!\n");

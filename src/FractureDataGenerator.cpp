@@ -50,58 +50,15 @@ namespace FractureSim
 		return vdb::Vec3d(in[0], in[1], in[2]);
 	}
 
-	FractureDataGenerator::FractureDataGenerator(bool useDefaultSolver)
+	FractureDataGenerator::FractureDataGenerator()
 	{
 		std::random_device seedGen;
-		random = mt19937(1);
-
-		broadphase = new btDbvtBroadphase();
-		collisionConfiguration = new btDefaultCollisionConfiguration();
-		dispatcher = new btCollisionDispatcher(collisionConfiguration);
-		if (useDefaultSolver)
-			solver = new btSequentialImpulseConstraintSolver();
-		else
-			solver = new btMLCPSolver(new btDantzigSolver());
-		dynamicsWorld = new btDiscreteDynamicsWorld(dispatcher, broadphase, solver, collisionConfiguration);
-		btGImpactCollisionAlgorithm::registerAlgorithm(dispatcher);
+		random = mt19937(seedGen());
 	}
 
 	FractureDataGenerator::~FractureDataGenerator()
 	{
-		for (int i = 0; i < dynamicsWorld->getNumCollisionObjects(); ++i) {
-			string* name = (string*)(dynamicsWorld->getCollisionObjectArray()[i]->getUserPointer());
-			if (name) {
-				//				printf("%d (%d) -> %s\n",i,dynamicsWorld->getCollisionObjectArray()[i]->getUserIndex(),name->c_str() );
-				delete name;
-			}
-			dynamicsWorld->getCollisionObjectArray()[i]->setUserPointer(NULL);
-		}
-
-		if (dynamicsWorld->getNumCollisionObjects())
-			printf("\n%% deleting %d remaining objects from dynamics world", dynamicsWorld->getNumCollisionObjects());
-		for (int i = dynamicsWorld->getNumCollisionObjects() - 1; i >= 0; --i) {
-			btCollisionObject* obj = dynamicsWorld->getCollisionObjectArray()[i];
-			if (obj) {
-				//				printf("remove\n");
-				dynamicsWorld->removeCollisionObject(obj);
-				btRigidBody* rb = dynamic_cast<btRigidBody*>(obj);
-				//				printf("motion state\n");
-				if (rb && rb->getMotionState()) delete rb->getMotionState();
-				//				printf("collision shape\n");
-				if (obj->getCollisionShape()) delete obj->getCollisionShape();
-				//				printf("del obj\n");
-				delete obj;
-			}
-		}
-
 		ColliderData::clearStoredData(false); // we've already delete the colliison shape for all the rigid bodies in the loop above
-
-//		printf("del dynamics world and stuff\n");
-		delete dynamicsWorld;
-		delete solver;
-		delete dispatcher;
-		delete collisionConfiguration;
-		delete broadphase;
 	}
 
 	int FractureDataGenerator::generate(
@@ -114,7 +71,8 @@ namespace FractureSim
 		int crackGridNum,
 		btVector3 gridMin,
 		btVector3 gridMax,
-		double dt)
+		double dt,
+		int start)
 	{
 		vector<string> params;
 		loadParamFile(paramFile, params);
@@ -140,7 +98,7 @@ namespace FractureSim
 			}
 		}
 
-		for (int i = 0; i < iterations; i++)
+		for (int i = start; i < iterations; i++)
 		{
 			printf("\niteration: %d\n", i);
 
@@ -218,9 +176,6 @@ namespace FractureSim
 			stressLog.close();
 
 			printf("save file: %s.obj, %s_stress.csv, %s_crack.csv\n\n", outputFileName.c_str(), outputFileName.c_str(), outputFileName.c_str());
-
-			dynamicsWorld->removeRigidBody(breakableRB->getRB());
-			delete breakableRB->getRB();
 
 			delete breakableRB;
 		}
@@ -350,7 +305,6 @@ namespace FractureSim
 			btVector3()
 		);
 		btRigidBody* rb = new btRigidBody(rbci);
-		dynamicsWorld->addRigidBody(rb);
 		rb->setUserIndex(0);
 		rb->setUserPointer(new string("main"));
 
@@ -388,7 +342,7 @@ namespace FractureSim
 				"\n%% ... tensile strength %.3lg, tensile toughness %.3lg, compressive factor %.3lf",
 				meshSize, voxelSize, meshSize / voxelSize, E, nu, rho, Sc, Kc, cf
 			);/**/
-			breakableRB = new FractureRB(rb, false); //FractureRB class should not delete this rb since it's the importer's job to do so
+			breakableRB = new FractureRB(rb, true);
 			breakableRB->setOutputDir(outDir);
 			if (useEstSIFs >= 0) breakableRB->setEstSIFsThreshold(useEstSIFs);
 			breakableRB->initFractureSim(

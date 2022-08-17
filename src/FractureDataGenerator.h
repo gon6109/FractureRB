@@ -11,7 +11,7 @@ namespace FractureSim {
 	class FractureDataGenerator
 	{
 	public:
-		FractureDataGenerator(bool useDefaultSolver = false);
+		FractureDataGenerator();
 		virtual ~FractureDataGenerator();
 
 		int generate(
@@ -24,16 +24,12 @@ namespace FractureSim {
 			int crackGridNum = 256,
 			btVector3 gridMin = btVector3(-1, -1, -1),
 			btVector3 gridMax = btVector3(1, 1, 1),
-			double dt = 1.0 / 250.0);
+			double dt = 1.0 / 250.0,
+			int start = 0);
 
 		void setOutputDir(std::string outDir);
 
 	protected:
-		btBroadphaseInterface* broadphase;
-		btDefaultCollisionConfiguration* collisionConfiguration;
-		btCollisionDispatcher* dispatcher;
-		btSequentialImpulseConstraintSolver* solver;
-		btDiscreteDynamicsWorld* dynamicsWorld;
 		std::mt19937 random;
 
 		std::string outDir; // directory and file prefix for output files
