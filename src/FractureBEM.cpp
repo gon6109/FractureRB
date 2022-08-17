@@ -848,4 +848,12 @@ namespace FractureSim{
 
 		postPro->computeInteriorStresses(tensions, shears, closestPoint, points, u, q, materialModel->getE(), materialModel->getNu());
 	}
+
+	int FractureBEM::writeVisualMesh(std::string filename, double visualQuality, bool visDisplace, bool visCOD, bool visClose, bool visOBJ)
+	{
+		auto u = bemSolver->getDisplacements();
+		auto u_c = bemSolver->computeCrackBaseDisplacements();
+
+		return levelSet->writeVisualMesh(nodes, elems, regions, cracks, u, u_c, filename, 0.001, visualQuality, visDisplace, visCOD, visClose, visOBJ);
+	}
 }

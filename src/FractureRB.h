@@ -12,6 +12,7 @@
 #include "ColliderData.h"
 
 #include <string>
+#include <functional>
 
 //fwd decl
 class btRigidBody;
@@ -86,7 +87,7 @@ namespace FractureSim{
 		 * rbTimeCode is used to distinguish output files from different calls to this method
 		 * returns the number of new BEM elements (0 ... no fractures) or negative values for errors
 		 */
-		int  runFractureSim(double maxTime, int rbTimeCode=0);
+		int  runFractureSim(double maxTime, int rbTimeCode=0, std::function<void(void)> first = nullptr);
 
 		/* Segment the implicit surface to find separate fragments
 		 * create breakable rigid bodies for large fragments

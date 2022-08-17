@@ -150,6 +150,11 @@ namespace FractureSim{
 		void dumpDebugData();
 
 		void computeInteriorStresses(vect3d_map& tensions, vect3d_map& shears, vect3d_map& closestPoint, const std::vector<Eigen::Vector3d> points);
+
+		int writeVisualMesh(std::string filename, double visualQuality = 2.0, // visualQuality >1 no output, in [0,1] use VDB adaptive meshing, <0 use quadric decimation
+			bool visDisplace = true, bool visCOD = true, bool visClose = false, bool visOBJ = false
+		);
+
 	protected:
         // explicit geometry representation (BEM mesh)
         node_map nodes; // map node-ID --> coordinates

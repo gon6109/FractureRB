@@ -46,11 +46,14 @@ namespace FractureSim
 	btVector3 fromEigen(const Eigen::Vector3d& in) {
 		return btVector3(in[0], in[1], in[2]);
 	}
+	vdb::Vec3d toVDB(const btVector3& in) {
+		return vdb::Vec3d(in[0], in[1], in[2]);
+	}
 
 	FractureDataGenerator::FractureDataGenerator(bool useDefaultSolver)
 	{
 		std::random_device seedGen;
-		random = mt19937(seedGen());
+		random = mt19937(1);
 
 		broadphase = new btDbvtBroadphase();
 		collisionConfiguration = new btDefaultCollisionConfiguration();
@@ -73,8 +76,6 @@ namespace FractureSim
 			}
 			dynamicsWorld->getCollisionObjectArray()[i]->setUserPointer(NULL);
 		}
-
-		delete breakableRB;
 
 		if (dynamicsWorld->getNumCollisionObjects())
 			printf("\n%% deleting %d remaining objects from dynamics world", dynamicsWorld->getNumCollisionObjects());
@@ -103,91 +104,24 @@ namespace FractureSim
 		delete broadphase;
 	}
 
-	int FractureDataGenerator::init(
+	int FractureDataGenerator::generate(
 		std::string inputFile,
 		std::string paramFile,
 		double splitImpulse,
-		int useEstSIFs)
+		int useEstSIFs,
+		int iterations,
+		int gridNum,
+		int crackGridNum,
+		btVector3 gridMin,
+		btVector3 gridMax,
+		double dt)
 	{
-		double minVoxelSize = DBL_MAX;
-
 		vector<string> params;
 		loadParamFile(paramFile, params);
 
 		vector<btScalar> vertices;
 		vector<int> indices;
 		loadObj(inputFile, vertices, indices);
-
-		btTriangleIndexVertexArray* triArray
-			= new btTriangleIndexVertexArray(indices.size() / 3, indices.data(), 3 * sizeof(int), vertices.size(), vertices.data(), 3 * sizeof(btScalar));
-		btGImpactMeshShape* shape = new btGImpactMeshShape(triArray);
-		shape->updateBound();
-
-		btRigidBody::btRigidBodyConstructionInfo rbci(
-			0,
-			new btDefaultMotionState(),
-			shape,
-			btVector3()
-		);
-		btRigidBody* rb = new btRigidBody(rbci);
-		dynamicsWorld->addRigidBody(rb);
-
-		if (params.size() > 9) {
-			double tmp, meshSize = 1.0, voxelSize = 0.1, E = 1.0, nu = 0.3, rho = 1.0, Sc = 1.0, Kc = 1.0, cf = 1.0, smplDens = 1.0;
-			bool noSI = false; int remesh = 0, tmI, check, maxCracks = -1;
-			string material = "default";
-			FRACTURE_METHOD method = FULL_BEM;
-			check = sscanf(params[0].c_str(), "%lf", &tmp); if (check == 1) meshSize = tmp;
-			check = sscanf(params[1].c_str(), "%lf", &tmp); if (check == 1) voxelSize = tmp;
-			check = sscanf(params[2].c_str(), "%lf", &tmp); if (check == 1) E = tmp;
-			check = sscanf(params[3].c_str(), "%lf", &tmp); if (check == 1) nu = tmp;
-			check = sscanf(params[4].c_str(), "%lf", &tmp); if (check == 1) rho = tmp;
-			check = sscanf(params[5].c_str(), "%lf", &tmp); if (check == 1) Sc = tmp;
-			check = sscanf(params[6].c_str(), "%lf", &tmp); if (check == 1) Kc = tmp;
-			check = sscanf(params[7].c_str(), "%lf", &tmp); if (check == 1) cf = tmp;
-			check = sscanf(params[8].c_str(), "%d", &tmI); if (check == 1) remesh = tmI;
-			check = sscanf(params[9].c_str(), "%lf", &tmp); if (check == 1 && tmp > 0.0) noSI = true;
-			material = params[10];
-			// some optional params ...
-			if (params.size() > 10) {
-				check = sscanf(params[11].c_str(), "%d", &tmI); if (check == 1) maxCracks = tmI;
-			}
-			if (params.size() > 11) {
-				check = sscanf(params[12].c_str(), "%d", &tmI); if (check == 1) method = (FRACTURE_METHOD)tmI;
-			}
-			if (params.size() > 12) {
-				check = sscanf(params[13].c_str(), "%lf", &tmp); if (check == 1) smplDens = tmp;
-			}
-
-			if (minVoxelSize > voxelSize) minVoxelSize = voxelSize; // store the smallest voxel-size in the scene
-			printf("\n%% ... building breakable rigid body:"
-				"\n%% ... crack mesh size %.3lg / voxel size %.3lg = resolution ratio %.1lf"
-				"\n%% ... Young's modulus %.3lg, Poisson's ratio %.3lf, density %.3lg"
-				"\n%% ... tensile strength %.3lg, tensile toughness %.3lg, compressive factor %.3lf",
-				meshSize, voxelSize, meshSize / voxelSize, E, nu, rho, Sc, Kc, cf
-			);/**/
-			breakableRB = new FractureRB(rb, false); //FractureRB class should not delete this rb since it's the importer's job to do so
-			breakableRB->setOutputDir(outDir);
-			if (useEstSIFs >= 0) breakableRB->setEstSIFsThreshold(useEstSIFs);
-			breakableRB->initFractureSim(
-				meshSize, voxelSize, E, nu, rho, Sc, Kc, cf, remesh, noSI, material, maxCracks, method, smplDens
-			);
-		}
-
-		return 0;
-	}
-
-	int FractureDataGenerator::generate(
-		std::ostream* out,
-		int iterations,
-		int gridNum,
-		btVector3 gridMin,
-		btVector3 gridMax,
-		double dt,
-		double impulseThreshold,
-		double forceThreshold)
-	{
-		ostream& stressLog = *out;
 
 		btVector3 gridSize = (gridMax - gridMin) / gridNum;
 		vector<Eigen::Vector3d> stressEvalPos;
@@ -208,12 +142,13 @@ namespace FractureSim
 
 		for (int i = 0; i < iterations; i++)
 		{
-			printf("iteration: %d\n", i);
+			printf("\niteration: %d\n", i);
 
-			breakableRB->clearContacts();
+			initFractureRB(params, vertices, indices, splitImpulse, useEstSIFs);
+
 			double totalImpulse = 0.0;
 
-			int contactNum = random() % 5 + 1; // [1, 5]
+			int contactNum = random() % 10 + 1; // [1, 10]
 			for (int l = 0; l < contactNum; l++)
 			{
 				auto& elems = breakableRB->getBEM()->getElems();
@@ -233,60 +168,37 @@ namespace FractureSim
 				do
 				{
 					velocity = Eigen::Vector3d(
-						random() % 100 / 100.0,
-						random() % 100 / 100.0,
-						random() % 100 / 100.0
+						(random() % 200) / 100.0 - 1,
+						(random() % 200) / 100.0 - 1,
+						(random() % 200) / 100.0 - 1
 					);
 					velocity.normalize();
-					velocity *= random() % 500 / 10.0 + 0.01; // velocity [0.001, 50] m/s
+					velocity *= random() % 100 / 100.0 + 0.001; // velocity [0.001, 1] m/s
 				} while (velocity.dot(elemNormal) > 0);
-				Eigen::Vector3d dir = velocity * (random() % 80) / 100.0;
+				velocity *= -1;
+				double impulse = breakableRB->getRB()->getMass() * velocity.norm();
+				double duration = random() % (int)((dt - breakableRB->getBEM()->getTimeStep()) * 100000) / 100000.0 + breakableRB->getBEM()->getTimeStep();
 
-				unsigned int contactElem;
-				double r = std::abs(breakableRB->getCurvatureAndElementID(pos, contactElem));
-				double e = 1.0 / breakableRB->getEovNuSq();
-				double m = breakableRB->getRB()->getInvMass();
-
-				double mass = (random() % 950 + 50); // mass [50, 1000] kg
-				m += 1.0 / mass;
-
-				r = 1.0 / r;
-				e = 1.0 / e;
-				m = 1.0 / m;
-
-				double v = std::abs((-velocity).dot(dir.normalized()));
-				double t_c = std::pow(m * m / (e * e * r * v), 0.2) * 2.8682656991953313822367;
-
-				double m1 = breakableRB->getRB()->getMass(), m2 = mass;
-				double j = std::abs(((1 + breakableRB->getRB()->getRestitution()) * (m1 * m2)
-					/ (m1 + m2 + m1 * m2 * (random() % 100 / 1000.0)) * -velocity).dot(dir));
-
-				dir *= -1;
-				breakableRB->addContact(contactElem, dir, j, t_c);
-				totalImpulse += j;
+				breakableRB->addContact(elemId, velocity, impulse, duration);
+				printf("contact element id: %d, impulse: %lf, duration: %lf\n", elemId, impulse, duration);
+				totalImpulse += impulse;
 			}
-
-			printf("fracture sim\n");
-			int check = breakableRB->runFractureSim(dt, 0);
 
 			vect3d_map sigma, tau;
 			vect3d_map unused;
-			breakableRB->getBEM()->computeInteriorStresses(sigma, tau, unused, stressEvalPos);
+
+			printf("fracture sim\n");
+			int check = breakableRB->runFractureSim(dt, 0, [&]() {
+				breakableRB->getBEM()->computeInteriorStresses(sigma, tau, unused, stressEvalPos);
+				});
+
 
 			printf("contact points: %d, total impulse: %lf, total force: %lf\n", contactNum, totalImpulse, breakableRB->getTotalContactForce());
-			string crackObjFileName = "";
-			if ((totalImpulse >= impulseThreshold || breakableRB->getTotalContactForce() >= forceThreshold)
-				&& breakableRB->getTotalContactForce() > 0.0)
-			{
-				node_map nodes;
-				elem_map elems;
-				breakableRB->getBEM()->getLevelSet().mesh(nodes, elems);
+			string outputFileName = outDir + to_string(i);
+			breakableRB->getBEM()->writeVisualMesh(outputFileName, -1, false, false, true, true);
+			breakableRB->getBEM()->getLevelSet().writeSdfCsv(outputFileName + "_crack.csv", toVDB(gridMin), toVDB(gridMax), crackGridNum);
 
-				crackObjFileName = to_string(i) + ".obj";
-				saveObj(crackObjFileName, nodes, elems);
-				printf("save crack .obj file: %s\n", crackObjFileName.c_str());
-			}
-
+			ofstream stressLog((outputFileName + "_stress.csv").c_str());
 			for (int l = 0; l < sigma.size(); l++)
 			{
 				for (int m = 0; m < 3; m++)
@@ -296,17 +208,28 @@ namespace FractureSim
 
 				for (int m = 0; m < 3; m++)
 				{
-					stressLog << tau[l][m] << ", ";
+					stressLog << tau[l][m];
+					if (m < 2)
+						stressLog << ", ";
+					else
+						stressLog << endl;
 				}
 			}
+			stressLog.close();
 
-			stressLog << crackObjFileName << endl;
+			printf("save file: %s.obj, %s_stress.csv, %s_crack.csv\n\n", outputFileName.c_str(), outputFileName.c_str(), outputFileName.c_str());
+
+			dynamicsWorld->removeRigidBody(breakableRB->getRB());
+			delete breakableRB->getRB();
+
+			delete breakableRB;
 		}
 		return 0;
 	}
 
 	void FractureDataGenerator::setOutputDir(std::string outDir)
 	{
+		this->outDir = outDir;
 	}
 
 	int FractureDataGenerator::loadObj(std::string filename, std::vector<btScalar>& vertices, std::vector<int>& indices)
@@ -316,7 +239,7 @@ namespace FractureSim
 		indices.clear();
 		int r = io::Importer<localReaderVCG::MyMesh>::Open(mesh, filename.c_str());
 
-		id_map vertexId; unsigned int k = NODE_BASE_INDEX;
+		id_map vertexId; unsigned int k = 0;
 		for (localReaderVCG::MyMesh::VertexIterator vi = mesh.vert.begin(); vi != mesh.vert.end(); ++vi) if (!vi->IsD()) {
 			vertices.push_back(vi->P()[0]);
 			vertices.push_back(vi->P()[1]);
@@ -338,23 +261,23 @@ namespace FractureSim
 		localReaderVCG::MyMesh mesh;
 
 		unsigned int firstVert = mesh.vert.size();
-		std::map<unsigned int, localReaderVCG::MyVertex> vertex_map;
+		std::map<unsigned int, localReaderVCG::MyVertex*> vertex_map;
 		localReaderVCG::MyMesh::VertexIterator vi = vcg::tri::Allocator<localReaderVCG::MyMesh>::AddVertices(mesh, nodes.size());
 		for (auto node : nodes)
 		{
 			vi->P()[0] = node.second[0];
 			vi->P()[1] = node.second[1];
 			vi->P()[2] = node.second[2];
-			vertex_map[node.first] = *vi;
+			vertex_map[node.first] = &*vi;
 			vi++;
 		}
 
 		localReaderVCG::MyMesh::FaceIterator fi = vcg::tri::Allocator<localReaderVCG::MyMesh>::AddFaces(mesh, elems.size());
 		for (auto elem : elems)
 		{
-			fi->V(0) = &(vertex_map[elem.second[0]]);
-			fi->V(1) = &(vertex_map[elem.second[1]]);
-			fi->V(2) = &(vertex_map[elem.second[2]]);
+			fi->V(0) = vertex_map[elem.second[0]];
+			fi->V(1) = vertex_map[elem.second[1]];
+			fi->V(2) = vertex_map[elem.second[2]];
 			fi++;
 		}
 
@@ -402,10 +325,76 @@ namespace FractureSim
 					//printf("added token \"%s\" to %s\n",token.c_str(), name.c_str());
 				}
 
+				in.close();
 				return 0;
 			}
 		}
 		in.close();
+
+		return 0;
+	}
+
+	int FractureDataGenerator::initFractureRB(std::vector<std::string> params, std::vector<btScalar> vertices, std::vector<int> indices, double splitImpulse, int useEstSIFs)
+	{
+		double minVoxelSize = DBL_MAX;
+
+		btTriangleIndexVertexArray* triArray
+			= new btTriangleIndexVertexArray(indices.size() / 3, indices.data(), 3 * sizeof(int), vertices.size() / 3, vertices.data(), 3 * sizeof(btScalar));
+		btGImpactMeshShape* shape = new btGImpactMeshShape(triArray);
+		shape->updateBound();
+
+		btRigidBody::btRigidBodyConstructionInfo rbci(
+			0,
+			new btDefaultMotionState(),
+			shape,
+			btVector3()
+		);
+		btRigidBody* rb = new btRigidBody(rbci);
+		dynamicsWorld->addRigidBody(rb);
+		rb->setUserIndex(0);
+		rb->setUserPointer(new string("main"));
+
+		if (params.size() > 11) {
+			double tmp, meshSize = 1.0, voxelSize = 0.1, E = 1.0, nu = 0.3, rho = 1.0, Sc = 1.0, Kc = 1.0, cf = 1.0, smplDens = 1.0;
+			bool noSI = false; int remesh = 0, tmI, check, maxCracks = -1;
+			string material = "default";
+			FRACTURE_METHOD method = FULL_BEM;
+			check = sscanf(params[0].c_str(), "%lf", &tmp); if (check == 1) meshSize = tmp;
+			check = sscanf(params[1].c_str(), "%lf", &tmp); if (check == 1) voxelSize = tmp;
+			check = sscanf(params[2].c_str(), "%lf", &tmp); if (check == 1) E = tmp;
+			check = sscanf(params[3].c_str(), "%lf", &tmp); if (check == 1) nu = tmp;
+			check = sscanf(params[4].c_str(), "%lf", &tmp); if (check == 1) rho = tmp;
+			check = sscanf(params[5].c_str(), "%lf", &tmp); if (check == 1) Sc = tmp;
+			check = sscanf(params[6].c_str(), "%lf", &tmp); if (check == 1) Kc = tmp;
+			check = sscanf(params[7].c_str(), "%lf", &tmp); if (check == 1) cf = tmp;
+			check = sscanf(params[8].c_str(), "%d", &tmI); if (check == 1) remesh = tmI;
+			check = sscanf(params[9].c_str(), "%lf", &tmp); if (check == 1 && tmp > 0.0) noSI = true;
+			material = params[10];
+			// some optional params ...
+			if (params.size() > 11) {
+				check = sscanf(params[11].c_str(), "%d", &tmI); if (check == 1) maxCracks = tmI;
+			}
+			if (params.size() > 12) {
+				check = sscanf(params[12].c_str(), "%d", &tmI); if (check == 1) method = (FRACTURE_METHOD)tmI;
+			}
+			if (params.size() > 13) {
+				check = sscanf(params[13].c_str(), "%lf", &tmp); if (check == 1) smplDens = tmp;
+			}
+
+			if (minVoxelSize > voxelSize) minVoxelSize = voxelSize; // store the smallest voxel-size in the scene
+			printf("\n%% ... building breakable rigid body:"
+				"\n%% ... crack mesh size %.3lg / voxel size %.3lg = resolution ratio %.1lf"
+				"\n%% ... Young's modulus %.3lg, Poisson's ratio %.3lf, density %.3lg"
+				"\n%% ... tensile strength %.3lg, tensile toughness %.3lg, compressive factor %.3lf",
+				meshSize, voxelSize, meshSize / voxelSize, E, nu, rho, Sc, Kc, cf
+			);/**/
+			breakableRB = new FractureRB(rb, false); //FractureRB class should not delete this rb since it's the importer's job to do so
+			breakableRB->setOutputDir(outDir);
+			if (useEstSIFs >= 0) breakableRB->setEstSIFsThreshold(useEstSIFs);
+			breakableRB->initFractureSim(
+				meshSize, voxelSize, E, nu, rho, Sc, Kc, cf, remesh, noSI, material, maxCracks, method, smplDens
+			);
+		}
 
 		return 0;
 	}

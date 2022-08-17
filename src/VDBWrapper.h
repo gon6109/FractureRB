@@ -266,6 +266,8 @@ namespace FractureSim{
 		 */
 		vdb::BBoxd getNearTris(const vdb::Vec3d& p, id_set& tris);
 
+		int writeSdfCsv(std::string filename, vdb::Vec3d min, vdb::Vec3d max, int gridCellNum);
+
     protected:
 		bool noSI;
 		// objectGrid is a (proper) (narrow-band) level-set used for in-/outside test

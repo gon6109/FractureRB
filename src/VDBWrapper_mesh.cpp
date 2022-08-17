@@ -690,6 +690,40 @@ namespace FractureSim{
 		return voxelBBoxWorld;
 	}
 
+    int VDBWrapper::writeSdfCsv(std::string filename, vdb::Vec3d min, vdb::Vec3d max, int gridCellNum)
+    {
+        ofstream out(filename.c_str());
+
+        vdb::Vec3d cellSize = (max - min) / gridCellNum;
+        auto grid = objectGrid->deepCopy();
+        for (auto crackGrid : crackGrids)
+        {
+            auto crackGridCopy = crackGrid.second->deepCopy();
+            vdb::tools::compMax(*grid, *crackGridCopy);
+        }
+
+        vdb::tools::GridSampler<vdb::FloatGrid::ConstAccessor, vdb::tools::BoxSampler> sampler(grid->getConstAccessor(), *resXform);
+        for (int z = 0; z < gridCellNum; z++)
+        {
+            for (int y = 0; y < gridCellNum; y++)
+            {
+                for (int x = 0; x < gridCellNum; x++)
+                {
+                    vdb::Vec3d evalPos =
+                        vdb::Vec3d(cellSize.x() * x, cellSize.y() * y, cellSize.z() * z) + cellSize / 2 + min;
+                    if (x > 0)
+                        out << ", ";
+                    out << sampler.wsSample(evalPos);
+                    if (x == gridCellNum - 1)
+                        out << endl;
+                }
+            }
+        }
+
+        out.close();
+        return 0;
+    }
+
 	// NEW FOR FractureRB
 	unsigned int VDBWrapper::findClosestSurfaceTri(const Eigen::Vector3d& p,
 		node_map& nodes, elem_map& elems, id_map& regions, id_set& cracks

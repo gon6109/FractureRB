@@ -183,7 +183,7 @@ namespace FractureSim{
 		return totalForce;
 	}
 
-	int  FractureRB::runFractureSim(double maxTime, int rbTimeCode){
+	int  FractureRB::runFractureSim(double maxTime, int rbTimeCode, function<void(void)> first){
 		double t0=omp_get_wtime(), t1, t2, tl; // runtime
 		double t_max=maxTime, t_step; // time-steps
 		int addedCracks=0, chk;
@@ -234,6 +234,7 @@ namespace FractureSim{
 					t2=omp_get_wtime(); printf("\t%.4lfs",t2-t1); t1=t2;
 					printf("\n%% writing output    ...");
 					fractSim->writeMesh(outfile.str()+"_0");
+					first();
 				}
 				t2=omp_get_wtime(); printf("\t%.4lfs",t2-t1); t1=t2;
 
