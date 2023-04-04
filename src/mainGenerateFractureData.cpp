@@ -25,6 +25,7 @@ int main(int argc, char* argv[]) {
 		TCLAP::ValueArg<double> impulseSplit("s", "split-impulse", "depth in units of the minimal voxel size of all input objects where impulse splitting occurs in the RB solver (default disabled)", false, -1.0, "depth", cmd);
 		TCLAP::ValueArg<int>    estFromElems("e", "est-elems", "if a fracture simulation contains more than the specified number of elements switch to faster estimated SIF evaluation (default -1=never) ", false, -1, "est-elems", cmd);
 		TCLAP::ValueArg<int>    startIdx("", "start", "start index of iterations", false, 0, "start", cmd);
+		TCLAP::ValueArg<int>    offsetIdx("", "offset", "offset index of iterations", false, 0, "offset", cmd);
 
 		cmd.parse(argc, argv);
 
@@ -48,7 +49,8 @@ int main(int argc, char* argv[]) {
 			gridMinVec,
 			gridMaxVec,
 			rbTimestep.getValue(),
-			startIdx.getValue()
+			startIdx.getValue(),
+			offsetIdx.getValue()
 		);
 
 		printf("\n%% simulation done!\n");

@@ -14,10 +14,14 @@
 #include <vcg/wrap/io_trimesh/import.h>
 #include <vcg/wrap/io_trimesh/export_obj.h>
 
+#define _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING
+#include <experimental/filesystem>
+
 using namespace vcg;
 using namespace tri;
 
 using namespace std;
+namespace fs = std::experimental::filesystem;
 
 namespace FractureSim
 {
@@ -72,7 +76,8 @@ namespace FractureSim
 		btVector3 gridMin,
 		btVector3 gridMax,
 		double dt,
-		int start)
+		int start,
+		int fileIdxOffset)
 	{
 		vector<string> params;
 		loadParamFile(paramFile, params);
@@ -100,45 +105,84 @@ namespace FractureSim
 
 		for (int i = start; i < iterations; i++)
 		{
-			printf("\niteration: %d\n", i);
+			printf("\niteration: %d\n", i + fileIdxOffset);
+
+			string outputFileName = outDir + to_string(i + fileIdxOffset);
+			if (fs::exists(outputFileName + "_stress.csv") && fs::exists(outputFileName + "_crack.csv"))
+			{
+				printf("exists crack & stress files.");
+				continue;
+			}
 
 			initFractureRB(params, vertices, indices, splitImpulse, useEstSIFs);
-
+			printf("\n");
 			double totalImpulse = 0.0;
+			std::vector<Eigen::Vector3d> contactPositions;
+			std::vector<Eigen::Vector3d> contactDirs;
+			std::vector<float> impulses;
+			std::vector<float> durations;
 
-			int contactNum = random() % 10 + 1; // [1, 10]
-			for (int l = 0; l < contactNum; l++)
+			int contactNum = 1; // [1, 1]
+			//for (int l = 0; l < contactNum; l++)
 			{
 				auto& elems = breakableRB->getBEM()->getElems();
 				auto& nodes = breakableRB->getBEM()->getNodes();
 				int elemId = next(elems.begin(), random() % elems.size())->first;
+				//int elemId = next(elems.begin(), i % elems.size())->first;
+				if (elemId == elems.size())
+				{
+					delete breakableRB;
+					continue;
+				}
 
 				Eigen::Vector3d elemP0(nodes[elems[elemId][0]][0], nodes[elems[elemId][0]][1], nodes[elems[elemId][0]][2]);
 				Eigen::Vector3d elemP1(nodes[elems[elemId][1]][0], nodes[elems[elemId][1]][1], nodes[elems[elemId][1]][2]);
 				Eigen::Vector3d elemP2(nodes[elems[elemId][2]][0], nodes[elems[elemId][2]][1], nodes[elems[elemId][2]][2]);
+				Eigen::Vector3d elemCenter = (elemP0 + elemP1 + elemP2) / 3;
 				Eigen::Vector3d elemNormal = (elemP1 - elemP0).cross(elemP2 - elemP0).normalized();
 
-				double t1 = random() % 100 / 100.0;
-				double t2 = random() % (int)(100 - t1 * 100) / 100.0;
-				Eigen::Vector3d pos = elemP0 + (elemP1 - elemP0) * t1 + (elemP2 - elemP0) * t2;
+				Eigen::Vector3d dir;
+				//do
+				//{
+				//	velocity = Eigen::Vector3d(
+				//		(random() % 200) / 100.0 - 1,
+				//		(random() % 200) / 100.0 - 1,
+				//		(random() % 200) / 100.0 - 1
+				//	);
+				//	velocity.normalize();
+				//	velocity *= i / elems.size() % 5 / 5.0 * 0.9 + 0.1; // velocity [0.1, 1] m/s
+				//} while (velocity.dot(elemNormal) > -cos(M_PI * 30.0f / 180.0f));
 
-				Eigen::Vector3d velocity;
-				do
-				{
-					velocity = Eigen::Vector3d(
-						(random() % 200) / 100.0 - 1,
-						(random() % 200) / 100.0 - 1,
-						(random() % 200) / 100.0 - 1
-					);
-					velocity.normalize();
-					velocity *= random() % 100 / 100.0 + 0.001; // velocity [0.001, 1] m/s
-				} while (velocity.dot(elemNormal) > 0);
-				velocity *= -1;
-				double impulse = breakableRB->getRB()->getMass() * velocity.norm();
-				double duration = random() % (int)((dt - breakableRB->getBEM()->getTimeStep()) * 100000) / 100000.0 + breakableRB->getBEM()->getTimeStep();
+				int dirId = random() % 9;
+				//int dirId = 4;
+				Eigen::Matrix3d rot = (Eigen::AngleAxisd((dirId % 3 - 1) * 5.0f * M_PI / 180.0f, Eigen::Vector3d::UnitY())
+					* Eigen::AngleAxisd((dirId / 3 - 1) * 5.0f * M_PI / 180.0f, Eigen::Vector3d::UnitZ())).matrix();
 
-				breakableRB->addContact(elemId, velocity, impulse, duration);
-				printf("contact element id: %d, impulse: %lf, duration: %lf\n", elemId, impulse, duration);
+				//dir = rot * (-elemNormal);
+				dir = rot * (-elemCenter);
+				dir.normalize();
+				//velocity *= i / elems.size() % 5 / 5.0 * 0.9 + 0.1; // velocity [0.1, 1] m/s
+
+				double impulse = 100000 * dir.norm();
+				//double duration = random() % (int)((dt - breakableRB->getBEM()->getTimeStep()) * 100000) / 100000.0 + breakableRB->getBEM()->getTimeStep();
+				double duration = dt;
+
+				breakableRB->addContact(elemId, dir, impulse, duration);
+				printf("contact element id: %d(%lf,%lf,%lf), dir: (%lf,%lf,%lf), impulse: %lf, duration: %lf, mass: %lf\n",
+					elemId,
+					elemCenter.x(),
+					elemCenter.y(),
+					elemCenter.z(),
+					dir.x(),
+					dir.y(),
+					dir.z(),
+					impulse,
+					duration,
+					breakableRB->getRB()->getMass());
+				contactPositions.push_back(elemCenter);
+				contactDirs.push_back(dir);
+				impulses.push_back(impulse);
+				durations.push_back(duration);
 				totalImpulse += impulse;
 			}
 
@@ -150,9 +194,16 @@ namespace FractureSim
 				breakableRB->getBEM()->computeInteriorStresses(sigma, tau, unused, stressEvalPos);
 				});
 
+			if (breakableRB->getTotalContactForce() < 1e-6f)
+			{
+				printf("no fracture, ");
+				printf("contact points: %d, total impulse: %lf, total force: %lf\n", contactNum, totalImpulse, breakableRB->getTotalContactForce());
+
+				delete breakableRB;
+				continue;
+			}
 
 			printf("contact points: %d, total impulse: %lf, total force: %lf\n", contactNum, totalImpulse, breakableRB->getTotalContactForce());
-			string outputFileName = outDir + to_string(i);
 			breakableRB->getBEM()->writeVisualMesh(outputFileName, -1, false, false, true, true);
 			breakableRB->getBEM()->getLevelSet().writeSdfCsv(outputFileName + "_crack.csv", toVDB(gridMin), toVDB(gridMax), crackGridNum);
 
@@ -174,6 +225,15 @@ namespace FractureSim
 				}
 			}
 			stressLog.close();
+
+			ofstream contactLog((outputFileName + "_contact.csv").c_str());
+			for (int l = 0; l < contactPositions.size(); l++)
+			{
+				contactLog << contactPositions[l].x() << ", " << contactPositions[l].y() << ", " << contactPositions[l].z() << ", ";
+				contactLog << contactDirs[l].x() << ", " << contactDirs[l].y() << ", " << contactDirs[l].z() << ", ";
+				contactLog << impulses[l] << ", " << durations[l] << endl;
+			}
+			contactLog.close();
 
 			printf("save file: %s.obj, %s_stress.csv, %s_crack.csv\n\n", outputFileName.c_str(), outputFileName.c_str(), outputFileName.c_str());
 

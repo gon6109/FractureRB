@@ -25,7 +25,8 @@ namespace FractureSim {
 			btVector3 gridMin = btVector3(-1, -1, -1),
 			btVector3 gridMax = btVector3(1, 1, 1),
 			double dt = 1.0 / 250.0,
-			int start = 0);
+			int start = 0,
+			int fileIdxOffset = 0);
 
 		void setOutputDir(std::string outDir);
 

@@ -43,7 +43,7 @@ data = np.stack(data, axis=2)
 fig = volume_slice(data)
 
 
-@mlab.animate(delay=30)
+@mlab.animate(delay=30, ui=False)
 def anim():
     scene = mlab.gcf()
     scene.scene.camera.position = [
