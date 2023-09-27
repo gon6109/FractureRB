@@ -77,7 +77,8 @@ namespace FractureSim
 		btVector3 gridMax,
 		double dt,
 		int start,
-		int fileIdxOffset)
+		int fileIdxOffset,
+		bool isOutputStress)
 	{
 		vector<string> params;
 		loadParamFile(paramFile, params);
@@ -108,9 +109,9 @@ namespace FractureSim
 			printf("\niteration: %d\n", i + fileIdxOffset);
 
 			string outputFileName = outDir + to_string(i + fileIdxOffset);
-			if (fs::exists(outputFileName + "_stress.csv") && fs::exists(outputFileName + "_crack.csv"))
+			if (fs::exists(outputFileName + "_crack.csv"))
 			{
-				printf("exists crack & stress files.");
+				printf("exists crack files.");
 				continue;
 			}
 
@@ -191,7 +192,8 @@ namespace FractureSim
 
 			printf("fracture sim\n");
 			int check = breakableRB->runFractureSim(dt, 0, [&]() {
-				breakableRB->getBEM()->computeInteriorStresses(sigma, tau, unused, stressEvalPos);
+				if (isOutputStress)
+					breakableRB->getBEM()->computeInteriorStresses(sigma, tau, unused, stressEvalPos);
 				});
 
 			if (breakableRB->getTotalContactForce() < 1e-6f)
@@ -207,24 +209,27 @@ namespace FractureSim
 			breakableRB->getBEM()->writeVisualMesh(outputFileName, -1, false, false, true, true);
 			breakableRB->getBEM()->getLevelSet().writeSdfCsv(outputFileName + "_crack.csv", toVDB(gridMin), toVDB(gridMax), crackGridNum);
 
-			ofstream stressLog((outputFileName + "_stress.csv").c_str());
-			for (int l = 0; l < sigma.size(); l++)
+			if (isOutputStress)
 			{
-				for (int m = 0; m < 3; m++)
+				ofstream stressLog((outputFileName + "_stress.csv").c_str());
+				for (int l = 0; l < sigma.size(); l++)
 				{
-					stressLog << sigma[l][m] << ", ";
-				}
+					for (int m = 0; m < 3; m++)
+					{
+						stressLog << sigma[l][m] << ", ";
+					}
 
-				for (int m = 0; m < 3; m++)
-				{
-					stressLog << tau[l][m];
-					if (m < 2)
-						stressLog << ", ";
-					else
-						stressLog << endl;
+					for (int m = 0; m < 3; m++)
+					{
+						stressLog << tau[l][m];
+						if (m < 2)
+							stressLog << ", ";
+						else
+							stressLog << endl;
+					}
 				}
+				stressLog.close();
 			}
-			stressLog.close();
 
 			ofstream contactLog((outputFileName + "_contact.csv").c_str());
 			for (int l = 0; l < contactPositions.size(); l++)

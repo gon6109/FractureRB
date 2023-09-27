@@ -9,3 +9,8 @@ This project replaces https://github.com/david-hahn/FractureBEM.
 
 Your OpenVDB version should include the bugfix to TreeIterator.h from
 https://github.com/dreamworksanimation/openvdb/commit/e6aa3c83b58a90520c9825a2b385b8185b5c0df3
+
+
+```
+python .\script\generate_fracture_data.py data_gen.csv -o F:/fracture-data/20230402/ -i 100 --shape 100
+```

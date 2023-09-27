@@ -26,6 +26,7 @@ int main(int argc, char* argv[]) {
 		TCLAP::ValueArg<int>    estFromElems("e", "est-elems", "if a fracture simulation contains more than the specified number of elements switch to faster estimated SIF evaluation (default -1=never) ", false, -1, "est-elems", cmd);
 		TCLAP::ValueArg<int>    startIdx("", "start", "start index of iterations", false, 0, "start", cmd);
 		TCLAP::ValueArg<int>    offsetIdx("", "offset", "offset index of iterations", false, 0, "offset", cmd);
+		TCLAP::SwitchArg    stressSwitch("", "stress", "output stress", cmd, false);
 
 		cmd.parse(argc, argv);
 
@@ -50,7 +51,8 @@ int main(int argc, char* argv[]) {
 			gridMaxVec,
 			rbTimestep.getValue(),
 			startIdx.getValue(),
-			offsetIdx.getValue()
+			offsetIdx.getValue(),
+			stressSwitch.getValue()
 		);
 
 		printf("\n%% simulation done!\n");
