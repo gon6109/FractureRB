@@ -12,17 +12,16 @@ from vtk.util import numpy_support
 
 def start_index(args):
     res = 0
-    for file in glob(f"{args.out}*_stress.*"):
-        i = int(re.match(fr"{args.out}(\d+)_stress\..*", file.replace("\\", "/")).groups()[0])
+    for file in glob(f"{args.out}*_contact.*"):
+        i = int(re.match(fr"{args.out}(\d+)_contact\..*", file.replace("\\", "/")).groups()[0])
         if i >= res:
             res = i + 1
 
     return res
 
 
-def generate_3d_convex_hull_obj(path, points_num=30):
-    points = np.random.uniform(-1, 1, size=(points_num, 3))
-
+def generate_3d_convex_hull_obj(path, points):
+    
     # 凸包を計算
     hull = ConvexHull(points)
 
@@ -90,14 +89,26 @@ parser.add_argument("--start", default="")
 parsed_args, _ = parser.parse_known_args()
 args = argv
 
+points_num = 30
+if os.path.exists(f"{parsed_args.out}base_point_cache.npy"):
+    base_points = np.load(f"{parsed_args.out}base_point_cache.npy")
+else:
+    base_points = np.random.uniform(-1, 1, size=(points_num, 3))
+    np.save(f"{parsed_args.out}base_point_cache.npy", base_points)
+
 error = 0
 i = 0
 while start_index(parsed_args) < parsed_args.iter * parsed_args.shape:
     start = start_index(parsed_args) % parsed_args.iter
     i = start_index(parsed_args) // parsed_args.iter
     if start == 0:
+        # 0.1の範囲でランダムな移動
+        offsets = np.random.uniform(-0.05, 0.05, size=base_points.shape)
+        moved_points = base_points + offsets
+        # [-1,1]の範囲にクランプ
+        points = np.clip(moved_points, -1, 1)
         generate_3d_convex_hull_obj(
-            f"{parsed_args.out}{i * parsed_args.iter}_input.obj")
+            f"{parsed_args.out}{i * parsed_args.iter}_input.obj", points)
         voxel, sdf = obj_to_voxel_and_sdf(
             f"{parsed_args.out}{i * parsed_args.iter}_input.obj")
         for l in range(parsed_args.iter):
