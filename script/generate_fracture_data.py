@@ -1,8 +1,12 @@
 import argparse
+import json
 import os
 import subprocess
 import sys
+import socket
+from datetime import datetime
 from sys import argv
+import requests
 from scipy.spatial import ConvexHull
 import numpy as np
 import vtk
@@ -141,6 +145,27 @@ def convert_data(root):
             print(f"convert error: {e}({file})")
 
 
+def log(log_type, log_data):
+    url = "https://l2m7mz314k.execute-api.ap-northeast-1.amazonaws.com/api/logs"
+    headers = {
+        "Content-Type": "application/json"
+    }
+    data = {
+        "device": socket.gethostname(),
+        "task": "generate_data",
+        "type": log_type,
+        "data": log_data,
+        "created_at": datetime.now().isoformat()
+    }
+
+    response = requests.post(url, headers=headers, data=json.dumps(data))
+
+    if response.status_code == 200:
+        print(response.json())
+    else:
+        print(f"Failed to post data. Status code: {response.status_code}")
+
+
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 os.chdir("../build/RELEASE/")
 
@@ -157,6 +182,9 @@ args = argv
 error = 0
 i = 0
 while start_index(parsed_args) < parsed_args.iter * parsed_args.shape:
+    if start_index(parsed_args) == 0:
+        log("start", {})
+
     start = start_index(parsed_args) % parsed_args.iter
     i = start_index(parsed_args) // parsed_args.iter
     if start == 0:
@@ -180,22 +208,25 @@ while start_index(parsed_args) < parsed_args.iter * parsed_args.shape:
     while start_index(parsed_args) < parsed_args.iter * (i + 1):
         start = start_index(parsed_args) % parsed_args.iter
         print(f"start: {start}, offset:{offset}")
-        subprocess.run(
-            [
-                "GenerateFractureData.exe",
-                f"{parsed_args.out}{i * parsed_args.iter}_input.obj",
-                parsed_args.param,
-                "-o",
-                parsed_args.out,
-                "-i",
-                f"{parsed_args.iter}",
-                "--start",
-                f"{start}",
-                "--offset",
-                f"{offset}",
-            ],
-            timeout=parsed_args.iter * 20,
-        )
+        try:
+            subprocess.run(
+                [
+                    "GenerateFractureData.exe",
+                    f"{parsed_args.out}{i * parsed_args.iter}_input.obj",
+                    parsed_args.param,
+                    "-o",
+                    parsed_args.out,
+                    "-i",
+                    f"{parsed_args.iter}",
+                    "--start",
+                    f"{start}",
+                    "--offset",
+                    f"{offset}",
+                ],
+                timeout=parsed_args.iter * 20,
+            )
+        except Exception as e:
+            print(f"{e}")
         retry += 1
 
         if retry > 5:
@@ -205,4 +236,8 @@ while start_index(parsed_args) < parsed_args.iter * parsed_args.shape:
 
             retry = 0
 
+        log("in_progress", {"index": start_index(parsed_args)})
+
     convert_data(parsed_args.out)
+
+log("complete", {})
