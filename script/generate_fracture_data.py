@@ -52,15 +52,6 @@ def generate_3d_convex_hull_obj(path, points):
     # 凸包の面のインデックスを取得
     faces = hull.simplices.tolist()
 
-    # 凹ます中心を決める
-    centroid = np.random.uniform(-1, 1, size=(3))
-    while not is_inside_convex_hull(centroid, hull):
-        centroid = np.random.uniform(-1, 1, size=(3))
-
-    # 頂点を重心方向に凹ます
-    for index in hull.vertices:
-        points[index] += (centroid - points[index]) * min(np.random.exponential(0.25), 0.9)
-
     # objファイルとして出力
     with open(path, "w") as f:
         for v in points:
@@ -71,22 +62,20 @@ def generate_3d_convex_hull_obj(path, points):
             
 
 def generate_3d_shape_obj(path, points):
-    
     # 凸包を計算
     hull = ConvexHull(points)
 
     # 凸包の面のインデックスを取得
     faces = hull.simplices.tolist()
 
-    # 重心を求める
-    centroid = np.zeros((3))
-    for index in hull.vertices:
-        centroid += points[index]
-    centroid /= len(hull.vertices)
+    # 凹ます中心を決める
+    centroid = np.random.uniform(-1, 1, size=(3))
+    while not is_inside_convex_hull(centroid, hull):
+        centroid = np.random.uniform(-1, 1, size=(3))
 
     # 頂点を重心方向に凹ます
     for index in hull.vertices:
-        points[index] += (centroid - points[index]) * min(np.random.exponential(0.25), 0.95)
+        points[index] += (centroid - points[index]) * min(np.random.exponential(0.25), 0.9)
 
     # objファイルとして出力
     with open(path, "w") as f:
