@@ -1,6 +1,7 @@
 import argparse
 import os
 import subprocess
+import sys
 from sys import argv
 from scipy.spatial import ConvexHull
 import numpy as np
@@ -9,6 +10,10 @@ from glob import glob
 import re
 import pandas as pd
 from vtk.util import numpy_support
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../thirdparty/neural-fracture/src")
+from dataset import shape
+from dataset import crack
 
 def start_index(args):
     res = 0
@@ -19,14 +24,69 @@ def start_index(args):
 
     return res
 
+def compute_normal(triangle):
+    normal = np.cross(triangle[1] - triangle[0], triangle[2] - triangle[0])
+    normal /= np.linalg.norm(normal)
+    return normal
+
+def is_inside_convex_hull(point, hull):
+    hull_center = np.mean(hull.points, axis=0)
+    for simplex in hull.simplices:
+        triangle = hull.points[simplex]
+        normal = compute_normal(triangle)
+        
+        # 法線が外向きであることを保証
+        if np.dot(normal, hull_center - triangle[0]) < 0:
+            normal = -normal
+        
+        # ポイントが面の外側にある場合
+        if np.dot(normal, point - triangle[0]) < 0:
+            return False
+    return True
+
 
 def generate_3d_convex_hull_obj(path, points):
+    # 凸包を計算
+    hull = ConvexHull(points)
+
+    # 凸包の面のインデックスを取得
+    faces = hull.simplices.tolist()
+
+    # 凹ます中心を決める
+    centroid = np.random.uniform(-1, 1, size=(3))
+    while not is_inside_convex_hull(centroid, hull):
+        centroid = np.random.uniform(-1, 1, size=(3))
+
+    # 頂点を重心方向に凹ます
+    for index in hull.vertices:
+        points[index] += (centroid - points[index]) * min(np.random.exponential(0.25), 0.9)
+
+    # objファイルとして出力
+    with open(path, "w") as f:
+        for v in points:
+            f.write("v {} {} {}\n".format(v[0], v[1], v[2]))
+        for face in faces:
+            f.write("f {} {} {}\n".format(
+                face[0] + 1, face[1] + 1, face[2] + 1))
+            
+
+def generate_3d_shape_obj(path, points):
     
     # 凸包を計算
     hull = ConvexHull(points)
 
     # 凸包の面のインデックスを取得
     faces = hull.simplices.tolist()
+
+    # 重心を求める
+    centroid = np.zeros((3))
+    for index in hull.vertices:
+        centroid += points[index]
+    centroid /= len(hull.vertices)
+
+    # 頂点を重心方向に凹ます
+    for index in hull.vertices:
+        points[index] += (centroid - points[index]) * min(np.random.exponential(0.25), 0.95)
 
     # objファイルとして出力
     with open(path, "w") as f:
@@ -68,12 +128,15 @@ def obj_to_voxel_and_sdf(path):
     return voxelArray, sdfArray
 
 
-def save_feather(feather_path, grid: np.ndarray):
-    grid_2d = grid.reshape(
-        (grid.shape[0] * grid.shape[2], grid.shape[1]))
-    df = pd.DataFrame(data=grid_2d, columns=[
-                      str(i) for i in range(grid_2d.shape[1])])
-    df.to_feather(feather_path)
+def convert_data(root):
+    for file in glob(f"{root}*_crack.csv"):
+        try:
+            convert_path = os.path.splitext(file)[0] + f'.npz'
+            _crack = crack.read_crack(file)
+            crack.save_crack_npz(convert_path, _crack)
+            os.remove(file)
+        except Exception as e:
+            print(f"convert error: {e}({file})")
 
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -89,32 +152,23 @@ parser.add_argument("--start", default="")
 parsed_args, _ = parser.parse_known_args()
 args = argv
 
-points_num = 30
-if os.path.exists(f"{parsed_args.out}base_point_cache.npy"):
-    base_points = np.load(f"{parsed_args.out}base_point_cache.npy")
-else:
-    base_points = np.random.uniform(-1, 1, size=(points_num, 3))
-    np.save(f"{parsed_args.out}base_point_cache.npy", base_points)
-
 error = 0
 i = 0
 while start_index(parsed_args) < parsed_args.iter * parsed_args.shape:
     start = start_index(parsed_args) % parsed_args.iter
     i = start_index(parsed_args) // parsed_args.iter
     if start == 0:
-        # 0.1の範囲でランダムな移動
-        offsets = np.random.uniform(-0.05, 0.05, size=base_points.shape)
-        moved_points = base_points + offsets
-        # [-1,1]の範囲にクランプ
-        points = np.clip(moved_points, -1, 1)
-        generate_3d_convex_hull_obj(
+        points_num = int(np.random.uniform(10, 30, size=(1))[0])
+        points = np.random.uniform(-1, 1, size=(points_num, 3))
+        generate_3d_shape_obj(
             f"{parsed_args.out}{i * parsed_args.iter}_input.obj", points)
         voxel, sdf = obj_to_voxel_and_sdf(
             f"{parsed_args.out}{i * parsed_args.iter}_input.obj")
         for l in range(parsed_args.iter):
-            save_feather(f"{parsed_args.out}{i * parsed_args.iter + l}_voxel.fea", voxel)
-            save_feather(f"{parsed_args.out}{i * parsed_args.iter + l}_sdf.fea", sdf)
+            shape.save_shape_npz(f"{parsed_args.out}{i * parsed_args.iter + l}_voxel.npz", voxel)
+            shape.save_shape_npz(f"{parsed_args.out}{i * parsed_args.iter + l}_sdf.npz", sdf)
     offset = i * parsed_args.iter
+    retry = 0
     while start_index(parsed_args) < parsed_args.iter * (i + 1):
         start = start_index(parsed_args) % parsed_args.iter
         print(f"start: {start}, offset:{offset}")
@@ -131,4 +185,14 @@ while start_index(parsed_args) < parsed_args.iter * parsed_args.shape:
             "--offset",
             f"{offset}",
         ])
+        retry += 1
+
+        if retry > 5:
+            print("retry: 5")
+            f = open(f"{parsed_args.out}{start_index(parsed_args)}_contact.csv", "w")
+            f.close()
+
+            retry = 0
+
+    convert_data(parsed_args.out)
     

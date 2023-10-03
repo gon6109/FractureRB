@@ -4,3 +4,6 @@
 [submodule "thirdparty/openvdb"]
 	path = thirdparty/openvdb
 	url = https://github.com/gon6109/openvdb.git
+[submodule "thirdparty/neural-fracture"]
+	path = thirdparty/neural-fracture
+	url = https://github.com/gon6109/neural-fracture.git
