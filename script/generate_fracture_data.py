@@ -20,9 +20,10 @@ from dataset import crack
 
 def start_index(args):
     res = 0
-    for file in glob(f"{args.out}*_contact.*"):
+    out = args.out.replace("\\", "/")
+    for file in glob(f"{out}*_contact.*"):
         i = int(
-            re.match(rf"{args.out}(\d+)_contact\..*", file.replace("\\", "/")).groups()[
+            re.match(rf"{out}(\d+)_contact\..*", file.replace("\\", "/")).groups()[
                 0
             ]
         )
