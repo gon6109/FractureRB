@@ -20,6 +20,7 @@ sys.path.append(
 )
 from dataset import shape
 from dataset import crack
+from dataset import fragment
 
 
 def start_index(args):
@@ -207,8 +208,18 @@ while start_index(parsed_args) < parsed_args.iter * parsed_args.shape:
     offset = i * parsed_args.iter
     retry = 0
     while start_index(parsed_args) < parsed_args.iter * (i + 1):
-        start = start_index(parsed_args) % parsed_args.iter
-        print(f"start: {start}, offset:{offset}")
+        print(f"iter:{offset}")
+
+        if retry > 5:
+                print("retry: 5")
+                
+                for l in range(i * parsed_args.iter, (i + 1) * parsed_args.iter):
+                    for file in glob(f"{parsed_args.out}{l}_*"):
+                        os.remove(file)
+                        print(f"remove: {file}")
+
+                break
+
         try:
             subprocess.run(
                 [
@@ -218,26 +229,39 @@ while start_index(parsed_args) < parsed_args.iter * parsed_args.shape:
                     "-o",
                     parsed_args.out,
                     "-i",
-                    f"{parsed_args.iter}",
+                    f"1",
                     "--start",
-                    f"{start}",
+                    f"0",
                     "--offset",
                     f"{offset}",
                 ],
                 timeout=parsed_args.iter * 20,
             )
+
+            crack_path = f"{parsed_args.out}{offset}_crack.csv"
+            convert_path = os.path.splitext(crack_path)[0] + f".npz"
+            _crack = crack.read_crack(crack_path)
+            crack.save_crack_npz(convert_path, _crack)
+            os.remove(crack_path)
+
+            subprocess.run(
+                ["python", "../../thirdparty/neural-fracture/tool/crack_to_fragment.py", convert_path, "--crack-info", f"{parsed_args.out}crack_info.csv"]
+            )
+
+            fragment_path = f"{parsed_args.out}{offset}_fragment.npz"
+            _fragment = fragment.read_fragment(fragment_path)
+            if _fragment.max() != 2:
+                print("number of fragments is not 2")
+                retry += 1
+                continue
+
+            offset += 1
+            retry = 0
+            log("in_progress", {"index": offset})
+
         except Exception as e:
             print(f"{e}")
-        retry += 1
-
-        if retry > 5:
-            print("retry: 5")
-            f = open(f"{parsed_args.out}{start_index(parsed_args)}_contact.csv", "w")
-            f.close()
-
-            retry = 0
-
-        log("in_progress", {"index": start_index(parsed_args)})
+            retry += 1
 
     convert_data(parsed_args.out)
 
