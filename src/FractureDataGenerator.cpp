@@ -5,6 +5,7 @@
 #include "PostProcessor.h"
 #include "FractureRB_config.h"
 #include "VDBWrapper.h"
+#include "MaterialModel.h"
 
 #include <BulletCollision/Gimpact/btGImpactCollisionAlgorithm.h>
 
@@ -143,28 +144,28 @@ namespace FractureSim
 				Eigen::Vector3d elemNormal = (elemP1 - elemP0).cross(elemP2 - elemP0).normalized();
 
 				Eigen::Vector3d dir;
-				//do
-				//{
-				//	velocity = Eigen::Vector3d(
-				//		(random() % 200) / 100.0 - 1,
-				//		(random() % 200) / 100.0 - 1,
-				//		(random() % 200) / 100.0 - 1
-				//	);
-				//	velocity.normalize();
-				//	velocity *= i / elems.size() % 5 / 5.0 * 0.9 + 0.1; // velocity [0.1, 1] m/s
-				//} while (velocity.dot(elemNormal) > -cos(M_PI * 30.0f / 180.0f));
+				do
+				{
+					dir = Eigen::Vector3d(
+						(random() % 200) / 100.0 - 1,
+						(random() % 200) / 100.0 - 1,
+						(random() % 200) / 100.0 - 1
+					);
+					dir.normalize();
+					//velocity *= i / elems.size() % 5 / 5.0 * 0.9 + 0.1; // velocity [0.1, 1] m/s
+				} while (dir.dot(elemNormal) > -cos(M_PI * 30.0f / 180.0f));
 
 				int dirId = random() % 9;
 				//int dirId = 4;
-				Eigen::Matrix3d rot = (Eigen::AngleAxisd((dirId % 3 - 1) * 5.0f * M_PI / 180.0f, Eigen::Vector3d::UnitY())
-					* Eigen::AngleAxisd((dirId / 3 - 1) * 5.0f * M_PI / 180.0f, Eigen::Vector3d::UnitZ())).matrix();
+				/*Eigen::Matrix3d rot = (Eigen::AngleAxisd((dirId % 3 - 1) * 5.0f * M_PI / 180.0f, Eigen::Vector3d::UnitY())
+					* Eigen::AngleAxisd((dirId / 3 - 1) * 5.0f * M_PI / 180.0f, Eigen::Vector3d::UnitZ())).matrix();*/
 
 				//dir = rot * (-elemNormal);
-				dir = rot * (-elemCenter);
-				dir.normalize();
+				//dir = rot * (-elemCenter);
+				//dir.normalize();
 				//velocity *= i / elems.size() % 5 / 5.0 * 0.9 + 0.1; // velocity [0.1, 1] m/s
 
-				double impulse = 100000 * dir.norm();
+				double impulse = breakableRB->getMaterial()->getDensity() * 4 * max((random() % 100) / 10.0, 1.0);
 				//double duration = random() % (int)((dt - breakableRB->getBEM()->getTimeStep()) * 100000) / 100000.0 + breakableRB->getBEM()->getTimeStep();
 				double duration = dt;
 
