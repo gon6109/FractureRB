@@ -26,6 +26,12 @@ from dataset import fragment
 def start_index(args):
     res = 0
     out = args.out.replace("\\", "/")
+    while os.path.exists(f"{out}{res}_contact.csv"):
+        res += 1
+    return res
+
+    res = 0
+    out = args.out.replace("\\", "/")
     for file in glob(f"{out}*_contact.*"):
         i = int(
             re.match(rf"{out}(\d+)_contact\..*", file.replace("\\", "/")).groups()[
@@ -207,18 +213,18 @@ while start_index(parsed_args) < parsed_args.iter * parsed_args.shape:
             )
     offset = i * parsed_args.iter
     retry = 0
-    while start_index(parsed_args) < parsed_args.iter * (i + 1):
+    while offset < parsed_args.iter * (i + 1):
         print(f"iter:{offset}")
 
         if retry > 5:
-                print("retry: 5")
-                
-                for l in range(i * parsed_args.iter, (i + 1) * parsed_args.iter):
-                    for file in glob(f"{parsed_args.out}{l}_*"):
-                        os.remove(file)
-                        print(f"remove: {file}")
+            print("retry: 5")
+            
+            for l in range(i * parsed_args.iter, (i + 1) * parsed_args.iter):
+                for file in glob(f"{parsed_args.out}{l}_*"):
+                    os.remove(file)
+                    print(f"remove: {file}")
 
-                break
+            break
 
         try:
             subprocess.run(
