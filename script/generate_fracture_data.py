@@ -112,13 +112,9 @@ def obj_to_voxel_and_sdf(path):
     reader = vtk.vtkOBJReader()
     reader.SetFileName(path)
 
-    # vtkDelaunay3Dを作成する
-    delaunay = vtk.vtkDelaunay3D()
-    delaunay.SetInputConnection(reader.GetOutputPort())
-
     # メッシュをボクセルに変換する
     voxelGrid = vtk.vtkVoxelModeller()
-    voxelGrid.SetInputConnection(delaunay.GetOutputPort())
+    voxelGrid.SetInputConnection(reader.GetOutputPort())
     voxelGrid.SetSampleDimensions(64, 64, 64)
     voxelGrid.SetModelBounds(-1, 1, -1, 1, -1, 1)
     voxelGrid.SetScalarTypeToFloat()
