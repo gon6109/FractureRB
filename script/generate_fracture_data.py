@@ -112,28 +112,44 @@ def obj_to_voxel_and_sdf(path):
     reader = vtk.vtkOBJReader()
     reader.SetFileName(path)
 
-    # メッシュをボクセルに変換する
-    voxelGrid = vtk.vtkVoxelModeller()
-    voxelGrid.SetInputConnection(reader.GetOutputPort())
-    voxelGrid.SetSampleDimensions(64, 64, 64)
-    voxelGrid.SetModelBounds(-1, 1, -1, 1, -1, 1)
-    voxelGrid.SetScalarTypeToFloat()
+    normals = vtk.vtkPolyDataNormals()
+    normals.SetInputConnection(reader.GetOutputPort())
+
+    normals.Update()
+
+    #Poly dataを取り出す
+    poly_data = normals.GetOutput()
+
+    #メッシュサイズを決める
+    cell_dims = [64, 64, 64]#x, y, z
+    bounds = [-1, 1, -1, 1, -1, 1]
+
+    voxel_grid = vtk.vtkImageData()
+    voxel_grid.SetDimensions(cell_dims)
+    voxel_grid.SetSpacing((bounds[1] - bounds[0]) / cell_dims[0], (bounds[3] - bounds[2]) / cell_dims[1], (bounds[5] - bounds[4]) / cell_dims[2])
+    voxel_grid.SetOrigin(bounds[0], bounds[2], bounds[4])
+
+    # vtkSelectEnclosedPointsで内外判定
+    select_enclosed = vtk.vtkSelectEnclosedPoints()
+    select_enclosed.SetInputData(voxel_grid)
+    select_enclosed.SetSurfaceData(poly_data)
+    select_enclosed.SetTolerance(1e-7)
+    select_enclosed.Update()
 
     distanceFilter = vtk.vtkImageEuclideanDistance()
-    distanceFilter.SetInputConnection(voxelGrid.GetOutputPort())
+    distanceFilter.SetInputConnection(select_enclosed.GetOutputPort())
     distanceFilter.Update()
-
-    # Convert voxel to NumPy array
-    voxelArray = numpy_support.vtk_to_numpy(
-        voxelGrid.GetOutput().GetPointData().GetScalars()
-    )
-    voxelArray = voxelArray.reshape((64, 64, 64))
 
     # Convert SDF to NumPy array
     sdfArray = numpy_support.vtk_to_numpy(
         distanceFilter.GetOutput().GetPointData().GetScalars()
     )
     sdfArray = sdfArray.reshape((64, 64, 64))
+
+    voxelArray = numpy_support.vtk_to_numpy(
+        select_enclosed.GetOutput().GetPointData().GetScalars()
+    )
+    voxelArray = voxelArray.reshape((64, 64, 64))
 
     return voxelArray, sdfArray
 
